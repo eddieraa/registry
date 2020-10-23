@@ -34,11 +34,15 @@ type Service struct {
 	Host    string
 }
 
+type observe struct {
+	callback func(pong Pong)
+}
+
 type reg struct {
 	c           *nats.Conn
 	messageBase string
-	m           map[string]map[string]Service
-	observers   map[string]bool
+	m           map[string]map[string]Pong
+	observers   map[string]observe
 }
 
 func (r reg) buildMessage(message, service string, args ...string) string {
@@ -78,7 +82,8 @@ func (r reg) subToPing(s Service) {
 func (r reg) Register(s Service) (f FnUnregister, err error) {
 	var data []byte
 	f = func() {}
-	if data, err = json.Marshal(s); err != nil {
+	pong := Pong{Service: s}
+	if data, err = json.Marshal(pong); err != nil {
 		return
 	}
 	r.subToPing(s)
@@ -105,80 +110,64 @@ func (r reg) Unregister(s Service) (err error) {
 
 //Connect to NATS
 func Connect(c *nats.Conn) (r Registry, err error) {
-	r = &reg{c: c, messageBase: "registry", m: make(map[string]map[string]Service), observers: make(map[string]bool)}
+	r = &reg{c: c, messageBase: "registry", m: make(map[string]map[string]Pong), observers: make(map[string]observe)}
+	return
+}
+
+func (r reg) getServices(name string) (res []Service) {
+	var servicesMap map[string]Pong
+	var ok bool
+	if servicesMap, ok = r.m[name]; ok && len(servicesMap) > 0 {
+		for _, v := range servicesMap {
+			res = append(res, v.Service)
+		}
+		return
+	}
 	return
 }
 
 func (r reg) GetServices(ctx context.Context, name string) ([]Service, error) {
-	var servicesMap map[string]Service
-	var ok bool
-	if servicesMap, ok = r.m[name]; ok && len(servicesMap) > 0 {
-		res := []Service{}
-		for _, v := range servicesMap {
-			res = append(res, v)
-		}
+	res := r.getServices(name)
+	if res != nil {
 		return res, nil
 	}
-	if !r.observers[name] {
+	var observe *observe
+	if o, exists := r.observers[name]; !exists {
+		observe = &o
 		r.Observe(name)
 	}
-	pongs, err := r.ping(ctx, name)
+	err := r.c.PublishRequest(r.buildMessage("ping", name), r.buildMessage("register", name), nil)
 	if err != nil {
 		return nil, err
 	}
-	res := make([]Service, len(pongs))
-	for i, s := range pongs {
-		res[i] = s.Service
-	}
-	return res, nil
-}
-
-func (r reg) ping(ctx context.Context, name string) ([]Pong, error) {
-	subRep := r.buildMessage("response", "ping", name)
-	err := r.c.PublishRequest(r.buildMessage("ping", name), subRep, nil)
-	if err != nil {
-		return nil, err
+	ch := make(chan Pong)
+	observe.callback = func(pong Pong) {
+		ch <- pong
 	}
 
-	subscription, err := r.c.SubscribeSync(subRep)
-	if err != nil {
-		return nil, err
-	}
-	res := []Pong{}
-stop:
-	for {
-		msg, err := subscription.NextMsgWithContext(ctx)
-		if err != nil {
-			log.Info("context canceled")
-			break stop
-		}
-
-		var pong Pong
-		err = json.Unmarshal(msg.Data, &pong)
-		if err != nil {
-			log.Error("Could not unmarshal pong response: ", err)
-			break stop
-		}
-		r.append(pong.Service)
-		res = append(res, pong)
-
+	//Waiting for context done
+	select {
+	case <-ctx.Done():
+		break
+	case <-ch:
+		break
 	}
 
-	subscription.Unsubscribe()
+	res = r.getServices(name)
 
 	return res, nil
 }
 
-func (r reg) append(s Service) {
+func (r reg) append(s Pong) {
 	if _, ok := r.m[s.Name]; !ok {
-		r.m[s.Name] = make(map[string]Service)
+		r.m[s.Name] = make(map[string]Pong)
 	}
 	services := r.m[s.Name]
 	services[s.Host+s.Address] = s
 }
 
 func (r reg) subregister(msg *nats.Msg) {
-	var s Service
+	var s Pong
 	err := json.Unmarshal(msg.Data, &s)
 	if err != nil {
 		logrus.Errorf("unmarshal error when sub to register: %s", err)
@@ -209,6 +198,6 @@ func (r reg) Observe(service string) error {
 	if err != nil {
 		return err
 	}
-	r.observers[service] = true
+	r.observers[service] = observe{}
 	return nil
 }
