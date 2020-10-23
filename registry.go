@@ -47,6 +47,12 @@ type reg struct {
 	m           map[string]map[string]Pong
 	observers   map[string]observe
 	opts        Options
+
+	//manage Registerd service
+	registeredServices map[string]Pong
+	//used to stop channel
+	chStopChannelRegisteredServices chan bool
+	chFiredRegisteredService        chan Pong
 }
 
 var (
@@ -89,22 +95,53 @@ func (r reg) subToPing(s Service) {
 }
 
 func (r reg) Register(s Service) (f FnUnregister, err error) {
-	var data []byte
 	f = func() {}
 	pong := Pong{Service: s}
-	if data, err = json.Marshal(pong); err != nil {
-		return
-	}
+
 	r.subToPing(s)
-	err = r.c.Publish(r.buildMessage("register", s.Name), data)
-	if err != nil {
-		return
-	}
+
+	r.registeredServices[s.Name+s.Address] = pong
+	//notify the channel to send new message
+	r.chFiredRegisteredService <- pong
 	f = func() {
 		r.Unregister(s)
 	}
 	return
 
+}
+
+func (r reg) pubregister(pong Pong) (err error) {
+	var data []byte
+	if data, err = json.Marshal(pong); err != nil {
+		log.Error("publish register failed unmarshal service ", pong.Name, " :", err)
+		return
+	}
+	if err = r.c.Publish(r.buildMessage("register", pong.Name), data); err != nil {
+		log.Error("publish register failed for service ", pong.Name, " :", err)
+		return
+	}
+	log.Info("Send register for service ", pong.Host, " ", pong.Service)
+	return
+}
+
+func (r reg) registerServiceInContinue() {
+	log.Infof("Start go routine for register services every %s ", r.opts.registerInterval)
+stop:
+	for {
+		tk := time.Tick(r.opts.registerInterval)
+		select {
+		case <-r.chStopChannelRegisteredServices:
+			log.Info("Receive stop in channel")
+			break stop
+		case <-tk:
+			for _, pong := range r.registeredServices {
+				r.pubregister(pong)
+			}
+		case pong := <-r.chFiredRegisteredService:
+			r.pubregister(pong)
+		}
+	}
+	log.Info("Stop go routine registerSerivceInContinue")
 }
 
 func (r reg) Unregister(s Service) (err error) {
@@ -113,18 +150,28 @@ func (r reg) Unregister(s Service) (err error) {
 		return
 	}
 	err = r.c.Publish(r.buildMessage("unregister", s.Name), data)
+	if r.registeredServices != nil {
+		delete(r.registeredServices, s.Name+s.Address)
+	}
+	log.Info("service ", s.Host, " ", s.Name, " Unregistered")
 	return
 
 }
 
 //Connect to NATS
 func Connect(c *nats.Conn, opts ...Option) (r Registry, err error) {
-	r = &reg{c: c,
-		messageBase: "registry",
-		m:           make(map[string]map[string]Pong),
-		observers:   make(map[string]observe),
-		opts:        newOptions(opts...),
+
+	reg := &reg{c: c,
+		messageBase:                     "registry",
+		m:                               make(map[string]map[string]Pong),
+		observers:                       make(map[string]observe),
+		opts:                            newOptions(opts...),
+		registeredServices:              make(map[string]Pong),
+		chFiredRegisteredService:        make(chan Pong),
+		chStopChannelRegisteredServices: make(chan bool),
 	}
+	go reg.registerServiceInContinue()
+	r = reg
 
 	return
 }
@@ -254,5 +301,10 @@ func (r reg) Observe(service string) error {
 //Stop go routine if exist.
 //TODO
 func (r reg) Close() (err error) {
+	r.chStopChannelRegisteredServices <- true
+	for _, s := range r.registeredServices {
+		r.Unregister(s.Service)
+	}
+	log.Info("Close registry")
 	return
 }

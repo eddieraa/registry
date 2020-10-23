@@ -33,6 +33,8 @@ func Test1(t *testing.T) {
 	services, _ = r.GetServices("httptest")
 	logrus.Info("nb services ", len(services))
 	<-time.Tick(time.Second * 5)
+	s, _ := r.GetService("httptest", nil)
+	logrus.Infof("Get service %s", s)
 	services, _ = r.GetServices("httptest")
 	logrus.Info("nb services ", len(services))
 	<-time.Tick(time.Second * 5)
