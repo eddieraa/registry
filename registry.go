@@ -150,6 +150,7 @@ func (r reg) GetServices(ctx context.Context, name string) ([]Service, error) {
 	case <-ctx.Done():
 		break
 	case <-ch:
+		close()
 		break
 	}
 
