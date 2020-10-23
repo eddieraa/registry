@@ -1,9 +1,10 @@
 package registry
 
 import (
-	"context"
 	"encoding/json"
+	"errors"
 	"strings"
+	"time"
 
 	"github.com/nats-io/nats.go"
 	"github.com/sirupsen/logrus"
@@ -13,8 +14,10 @@ import (
 //Registry Register, Unregister
 type Registry interface {
 	Register(s Service) (FnUnregister, error)
-	GetServices(ctx context.Context, name string) ([]Service, error)
+	GetServices(name string) ([]Service, error)
+	GetService(name string, filter Filter) (*Service, error)
 	Observe(serviceName string) error
+	Close() error
 }
 
 //Pong response to ping
@@ -43,7 +46,13 @@ type reg struct {
 	messageBase string
 	m           map[string]map[string]Pong
 	observers   map[string]observe
+	opts        Options
 }
+
+var (
+	//ErrNotFound when no service found
+	ErrNotFound = errors.New("No service found")
+)
 
 func (r reg) buildMessage(message, service string, args ...string) string {
 	var b strings.Builder
@@ -109,8 +118,14 @@ func (r reg) Unregister(s Service) (err error) {
 }
 
 //Connect to NATS
-func Connect(c *nats.Conn) (r Registry, err error) {
-	r = &reg{c: c, messageBase: "registry", m: make(map[string]map[string]Pong), observers: make(map[string]observe)}
+func Connect(c *nats.Conn, opts ...Option) (r Registry, err error) {
+	r = &reg{c: c,
+		messageBase: "registry",
+		m:           make(map[string]map[string]Pong),
+		observers:   make(map[string]observe),
+		opts:        newOptions(opts...),
+	}
+
 	return
 }
 
@@ -126,9 +141,30 @@ func (r reg) getServices(name string) (res []Service) {
 	return
 }
 
-func (r reg) GetServices(ctx context.Context, name string) ([]Service, error) {
+func (r reg) GetService(name string, f Filter) (*Service, error) {
+	services, err := r.getinternalService(name, f)
+	if err != nil {
+		return nil, err
+	}
+	if services == nil || len(services) == 0 {
+		return nil, ErrNotFound
+	}
+	//return first item
+	return &services[0], nil
+
+}
+
+func (r reg) getinternalService(name string, f Filter) ([]Service, error) {
 	res := r.getServices(name)
 	if res != nil {
+		if f != nil {
+			for _, s := range res {
+				if f(s) {
+					return []Service{s}, nil
+				}
+			}
+			return nil, ErrNotFound
+		}
 		return res, nil
 	}
 	var observe *observe
@@ -141,22 +177,32 @@ func (r reg) GetServices(ctx context.Context, name string) ([]Service, error) {
 		return nil, err
 	}
 	ch := make(chan Pong)
-	observe.callback = func(pong Pong) {
-		ch <- pong
+	if f != nil {
+		observe.callback = func(pong Pong) {
+			if f(pong.Service) {
+				ch <- pong
+			}
+		}
 	}
 
 	//Waiting for context done
+	tk := time.Tick(r.opts.timeout)
 	select {
-	case <-ctx.Done():
+	case <-tk:
 		break
 	case <-ch:
-		close()
+		close(ch)
 		break
 	}
 
 	res = r.getServices(name)
 
 	return res, nil
+
+}
+
+func (r reg) GetServices(name string) ([]Service, error) {
+	return r.getinternalService(name, nil)
 }
 
 func (r reg) append(s Pong) {
@@ -201,4 +247,12 @@ func (r reg) Observe(service string) error {
 	}
 	r.observers[service] = observe{}
 	return nil
+}
+
+//Close unregister to all subscriptions.
+//Clear local cache.
+//Stop go routine if exist.
+//TODO
+func (r reg) Close() (err error) {
+	return
 }
