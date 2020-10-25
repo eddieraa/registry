@@ -35,16 +35,16 @@ Multi-tenant support is planned. The tool is based on pub / sub, each message ca
 on the server side :
 ```golang
     //connect to nats server
-	c, err := nats.Connect("localhost:4222")
-	if err != nil {
-		log.Fatal("Could not connect to nats: ", err)
-	}
+    c, err := nats.Connect("localhost:4222")
+    if err != nil {
+        log.Fatal("Could not connect to nats: ", err)
+    }
     //Create registry instance
-	reg, err := registry.Connect(registry.Nats(c))
-	if err != nil {
-		log.Fatal("Could not open registry session", err)
-	}
-	//Register
+    reg, err := registry.Connect(registry.Nats(c))
+    if err != nil {
+        log.Fatal("Could not open registry session", err)
+    }
+    //Register
     unregister, err := reg.Register(registry.Service{Name: "httptest", URL: "http://localhost:8083/test"})
     if err != nil {
         log.Fatal("Could not register the service ", err)
@@ -58,12 +58,12 @@ on the server side :
 On the client side :
 ```golang
     //connect to nats server
-	c, err := nats.Connect("localhost:4222")
-	if err != nil {
+    c, err := nats.Connect("localhost:4222")
+    if err != nil {
 		log.Fatal("Could not connect to nats: ", err)
-	}
+    }
     //Create registry instance
-	reg, err := registry.Connect(registry.Nats(c))
+    reg, err := registry.Connect(registry.Nats(c))
 	if err != nil {
 		log.Fatal("Could not open registry session", err)
     }
@@ -75,8 +75,8 @@ On the client side :
         return
     }
 
-	services, err := r.GetServices( "httptest")
-	if err != nil {
+    services, err := r.GetServices( "httptest")
+    if err != nil {
         log.Error("Could not get services ", err)
         return
     }
