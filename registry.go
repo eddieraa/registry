@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/nats-io/nats.go"
@@ -30,11 +31,18 @@ type FnUnregister func()
 
 //Service service struct
 type Service struct {
+	//Network tcp/unix/tpc6
 	Network string
+	//Bind address
 	Address string
-	Name    string
+	//URL base used for communicate with this service
+	URL string
+	//Name service name
+	Name string
+	//Version semver version
 	Version string
-	Host    string
+	//Host
+	Host string
 }
 
 type observe struct {
@@ -42,7 +50,6 @@ type observe struct {
 }
 
 type reg struct {
-	c           *nats.Conn
 	messageBase string
 	m           map[string]map[string]Pong
 	observers   map[string]observe
@@ -58,6 +65,9 @@ type reg struct {
 var (
 	//ErrNotFound when no service found
 	ErrNotFound = errors.New("No service found")
+	//singleton instance
+	instance    *reg
+	intanceOnce sync.Once
 )
 
 func (r reg) buildMessage(message, service string, args ...string) string {
@@ -91,7 +101,7 @@ func (r reg) subToPing(s Service) {
 		}
 
 	}
-	r.c.Subscribe(r.buildMessage("ping", s.Name), fn)
+	r.opts.natsConn.Subscribe(r.buildMessage("ping", s.Name), fn)
 }
 
 func (r reg) Register(s Service) (f FnUnregister, err error) {
@@ -116,7 +126,7 @@ func (r reg) pubregister(pong Pong) (err error) {
 		log.Error("publish register failed unmarshal service ", pong.Name, " :", err)
 		return
 	}
-	if err = r.c.Publish(r.buildMessage("register", pong.Name), data); err != nil {
+	if err = r.opts.natsConn.Publish(r.buildMessage("register", pong.Name), data); err != nil {
 		log.Error("publish register failed for service ", pong.Name, " :", err)
 		return
 	}
@@ -149,7 +159,7 @@ func (r reg) Unregister(s Service) (err error) {
 	if data, err = json.Marshal(s); err != nil {
 		return
 	}
-	err = r.c.Publish(r.buildMessage("unregister", s.Name), data)
+	err = r.opts.natsConn.Publish(r.buildMessage("unregister", s.Name), data)
 	if r.registeredServices != nil {
 		delete(r.registeredServices, s.Name+s.Address)
 	}
@@ -158,21 +168,23 @@ func (r reg) Unregister(s Service) (err error) {
 
 }
 
-//Connect to NATS
-func Connect(c *nats.Conn, opts ...Option) (r Registry, err error) {
-
-	reg := &reg{c: c,
-		messageBase:                     "registry",
-		m:                               make(map[string]map[string]Pong),
-		observers:                       make(map[string]observe),
-		opts:                            newOptions(opts...),
-		registeredServices:              make(map[string]Pong),
-		chFiredRegisteredService:        make(chan Pong),
-		chStopChannelRegisteredServices: make(chan bool),
+//Connect pubsub transport
+func Connect(opts ...Option) (r Registry, err error) {
+	if instance == nil {
+		intanceOnce.Do(func() {
+			instance = &reg{
+				messageBase:                     "registry",
+				m:                               make(map[string]map[string]Pong),
+				observers:                       make(map[string]observe),
+				opts:                            newOptions(opts...),
+				registeredServices:              make(map[string]Pong),
+				chFiredRegisteredService:        make(chan Pong),
+				chStopChannelRegisteredServices: make(chan bool),
+			}
+			go instance.registerServiceInContinue()
+		})
 	}
-	go reg.registerServiceInContinue()
-	r = reg
-
+	r = instance
 	return
 }
 
@@ -219,7 +231,7 @@ func (r reg) getinternalService(name string, f Filter) ([]Service, error) {
 		observe = &o
 		r.Observe(name)
 	}
-	err := r.c.PublishRequest(r.buildMessage("ping", name), r.buildMessage("register", name), nil)
+	err := r.opts.natsConn.PublishRequest(r.buildMessage("ping", name), r.buildMessage("register", name), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -284,11 +296,11 @@ func (r reg) subunregister(msg *nats.Msg) {
 
 }
 func (r reg) Observe(service string) error {
-	_, err := r.c.Subscribe(r.buildMessage("register", service), r.subregister)
+	_, err := r.opts.natsConn.Subscribe(r.buildMessage("register", service), r.subregister)
 	if err != nil {
 		return err
 	}
-	_, err = r.c.Subscribe(r.buildMessage("unregister", service), r.subunregister)
+	_, err = r.opts.natsConn.Subscribe(r.buildMessage("unregister", service), r.subunregister)
 	if err != nil {
 		return err
 	}
