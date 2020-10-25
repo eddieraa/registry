@@ -1,6 +1,10 @@
 package registry
 
-import "time"
+import (
+	"time"
+
+	"github.com/nats-io/nats.go"
+)
 
 //Option option func
 type Option func(opts *Options)
@@ -9,6 +13,7 @@ type Option func(opts *Options)
 type Options struct {
 	timeout          time.Duration
 	registerInterval time.Duration
+	natsConn         *nats.Conn
 }
 
 var (
@@ -27,6 +32,13 @@ func newOptions(opts ...Option) Options {
 		o(&options)
 	}
 	return options
+}
+
+//Nats initialyse service registry with nats connection
+func Nats(conn *nats.Conn) Option {
+	return func(opts *Options) {
+		opts.natsConn = conn
+	}
 }
 
 //Timeout define timeout
