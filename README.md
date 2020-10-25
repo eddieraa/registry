@@ -75,9 +75,7 @@ On the client side :
         return
     }
 
-    ctx, fct := context.WithTimeout(context.Background(), time.Millisecond*100)
-	defer fct()
-	services, err := r.GetServices(ctx, "httptest")
+	services, err := r.GetServices( "httptest")
 	if err != nil {
         log.Error("Could not get services ", err)
         return
