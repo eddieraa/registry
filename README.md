@@ -1,5 +1,7 @@
 # Simple Service registry based on pub/sub pattern
 
+[![License Apache 2](https://img.shields.io/badge/License-Apache2-blue.svg)](https://www.apache.org/licenses/LICENSE-2.0)
+
 This first version service registry use nats (https://nats.io/) to implement a service registry
 You just need to start nats before using this service registry
 
