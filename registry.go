@@ -73,9 +73,17 @@ type reg struct {
 
 	//manage Registerd service
 	registeredServices map[string]Pong
-	//used to stop channel
+
+	//used to stop go routine registerServiceInContinue
 	chStopChannelRegisteredServices chan bool
-	chFiredRegisteredService        chan Pong
+
+	//wakeup go routine registerServiceInContinue and force a new service
+	//to be registered
+	chFiredRegisteredService chan Pong
+
+	//references to all subscriptions to nats
+	//these subscriptions unsubscripe when Close function will be call
+	subscriptions []*nats.Subscription
 }
 
 var (
@@ -126,7 +134,12 @@ func (r reg) subToPing(p Pong) {
 		}
 
 	}
-	r.opts.natsConn.Subscribe(r.buildMessage("ping", p.Name), fn)
+	s, err := r.opts.natsConn.Subscribe(r.buildMessage("ping", p.Name), fn)
+	if err != nil {
+		log.Error("subToPing: ", err)
+	} else {
+		r.subscriptions = append(r.subscriptions, s)
+	}
 }
 
 func (r reg) Register(s Service) (f FnUnregister, err error) {
@@ -204,6 +217,7 @@ func Connect(opts ...Option) (r Registry, err error) {
 				registeredServices:              make(map[string]Pong),
 				chFiredRegisteredService:        make(chan Pong),
 				chStopChannelRegisteredServices: make(chan bool),
+				subscriptions:                   make([]*nats.Subscription, 0),
 			}
 			go instance.registerServiceInContinue()
 		})
@@ -330,14 +344,16 @@ func (r reg) subunregister(msg *nats.Msg) {
 
 }
 func (r reg) Observe(service string) error {
-	_, err := r.opts.natsConn.Subscribe(r.buildMessage("register", service), r.subregister)
+	s, err := r.opts.natsConn.Subscribe(r.buildMessage("register", service), r.subregister)
 	if err != nil {
 		return err
 	}
-	_, err = r.opts.natsConn.Subscribe(r.buildMessage("unregister", service), r.subunregister)
+	r.subscriptions = append(r.subscriptions, s)
+	s, err = r.opts.natsConn.Subscribe(r.buildMessage("unregister", service), r.subunregister)
 	if err != nil {
 		return err
 	}
+	r.subscriptions = append(r.subscriptions, s)
 	r.observers[service] = observe{}
 	return nil
 }
@@ -351,6 +367,10 @@ func (r reg) Close() (err error) {
 	for _, s := range r.registeredServices {
 		r.Unregister(s.Service)
 	}
-	log.Info("Close registry")
+	for _, s := range r.subscriptions {
+		s.Unsubscribe()
+	}
+	r.subscriptions = r.subscriptions[0:0]
+	log.Debug("Close registry done")
 	return
 }
