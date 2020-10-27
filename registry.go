@@ -67,10 +67,9 @@ type observe struct {
 }
 
 type reg struct {
-	messageBase string
-	m           map[string]map[string]Pong
-	observers   map[string]observe
-	opts        Options
+	m         map[string]map[string]Pong
+	observers map[string]observe
+	opts      Options
 
 	//manage Registerd service
 	registeredServices map[string]Pong
@@ -89,7 +88,7 @@ var (
 
 func (r reg) buildMessage(message, service string, args ...string) string {
 	var b strings.Builder
-	b.WriteString(r.messageBase)
+	b.WriteString(r.opts.mainTopic)
 	b.WriteString("/")
 	b.WriteString(message)
 	b.WriteString("/")
@@ -100,7 +99,7 @@ func (r reg) buildMessage(message, service string, args ...string) string {
 			b.WriteString(s)
 		}
 	}
-	return r.messageBase + "/" + message + "/" + service
+	return b.String()
 }
 
 func (s Service) String() string {
@@ -199,7 +198,6 @@ func Connect(opts ...Option) (r Registry, err error) {
 	if instance == nil {
 		intanceOnce.Do(func() {
 			instance = &reg{
-				messageBase:                     "registry",
 				m:                               make(map[string]map[string]Pong),
 				observers:                       make(map[string]observe),
 				opts:                            newOptions(opts...),
