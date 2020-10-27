@@ -14,6 +14,7 @@ type Options struct {
 	timeout          time.Duration
 	registerInterval time.Duration
 	natsConn         *nats.Conn
+	mainTopic        string
 }
 
 var (
@@ -21,12 +22,15 @@ var (
 	DefaultTimeout = 100 * time.Millisecond
 	//DefaultRegisterInterval time between 2 registration
 	DefaultRegisterInterval = 20 * time.Second
+	//DefaultMainTopic default message base. All topics will start with this message
+	DefaultMainTopic string
 )
 
 func newOptions(opts ...Option) Options {
 	options := Options{
 		timeout:          DefaultTimeout,
 		registerInterval: DefaultRegisterInterval,
+		mainTopic:        DefaultMainTopic,
 	}
 	for _, o := range opts {
 		o(&options)
@@ -52,5 +56,12 @@ func Timeout(timeout time.Duration) Option {
 func RegisterInterval(duration time.Duration) Option {
 	return func(opts *Options) {
 		opts.registerInterval = duration
+	}
+}
+
+//MainTopic all topic will start with topic. Usefull in multi-tenancy
+func MainTopic(topic string) Option {
+	return func(opts *Options) {
+		opts.mainTopic = topic
 	}
 }
