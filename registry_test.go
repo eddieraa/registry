@@ -15,7 +15,7 @@ func Test1(t *testing.T) {
 	if err != nil {
 		t.Fatal("Could not connect to nats ", err)
 	}
-	r, err := Connect(Nats(c), Timeout(200*time.Millisecond))
+	r, err := Connect(Nats(c), Timeout(3000*time.Millisecond))
 	if err != nil {
 		t.Fatal("Could not open registry session: ", err)
 	}
