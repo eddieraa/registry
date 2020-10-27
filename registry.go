@@ -3,6 +3,7 @@ package registry
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strings"
 	"sync"
 	"time"
@@ -21,9 +22,18 @@ type Registry interface {
 	Close() error
 }
 
+//Timestamps define registered datetime and expiration duration
+type Timestamps struct {
+	//date registered in nanoseconds (unix timestamp)
+	Registered int64
+	//expiration duration in milliseconds
+	Duration int
+}
+
 //Pong response to ping
 type Pong struct {
 	Service
+	Timestamps *Timestamps `json:"t,omitempty"`
 }
 
 //FnUnregister call this func for unregister the service
@@ -32,17 +42,24 @@ type FnUnregister func()
 //Service service struct
 type Service struct {
 	//Network tcp/unix/tpc6
-	Network string
+	Network string `json:"net,omitempty"`
 	//Bind address
-	Address string
+	Address string `json:"add,omitempty"`
 	//URL base used for communicate with this service
-	URL string
+	URL string `json:"url,omitempty"`
 	//Name service name
-	Name string
+	Name string `json:"name,omitempty"`
 	//Version semver version
-	Version string
+	Version string `json:"v,omitempty"`
 	//Host
-	Host string
+	Host string `json:"h,omitempty"`
+
+	dueTime time.Time
+}
+
+//DueTime expiration time
+func (s Service) DueTime() time.Time {
+	return s.dueTime
 }
 
 type observe struct {
@@ -86,33 +103,41 @@ func (r reg) buildMessage(message, service string, args ...string) string {
 	return r.messageBase + "/" + message + "/" + service
 }
 
-func (r reg) subToPing(s Service) {
-	log.Info("Sub to ping for service ", s.Name, " ", s.Address)
-	pong := Pong{
-		Service: s,
+func (s Service) String() string {
+	due := s.DueTime().Sub(time.Now())
+	return fmt.Sprintf("Name: %s Addr: %s Host: %s URL: %s Timestamps in due time in %d millis", s.Name, s.Address, s.Host, s.URL, int(due.Milliseconds()))
+}
+
+func (p Pong) String() string {
+	if p.Timestamps == nil {
+		return fmt.Sprintf("%s", p.Name)
 	}
+	return fmt.Sprintf("%s timestamp %d, %d", p.Name, p.Timestamps.Registered, p.Timestamps.Duration)
+}
+
+func (r reg) subToPing(p Pong) {
+	log.Info("Sub to ping for service ", p.Name, " ", p.Address)
 	fn := func(m *nats.Msg) {
-		data, err := json.Marshal(pong)
+		data, err := json.Marshal(p)
 		if err == nil {
-			log.Info("Respond to ping ", m.Reply, " ", s.Name, " ", s.Address)
+			log.Info("Respond to ping ", m.Reply, " ", p.Name, " ", p.Address)
 			m.Respond(data)
 		} else {
-			log.Errorf("Unable to marchal pong for service %s error is: %s", s.Name, err)
+			log.Errorf("Unable to marchal pong for service %s error is: %s", p.Name, err)
 		}
 
 	}
-	r.opts.natsConn.Subscribe(r.buildMessage("ping", s.Name), fn)
+	r.opts.natsConn.Subscribe(r.buildMessage("ping", p.Name), fn)
 }
 
 func (r reg) Register(s Service) (f FnUnregister, err error) {
 	f = func() {}
-	pong := Pong{Service: s}
+	p := Pong{Service: s, Timestamps: &Timestamps{Registered: time.Now().UnixNano(), Duration: int(r.opts.registerInterval.Milliseconds())}}
+	r.subToPing(p)
 
-	r.subToPing(s)
-
-	r.registeredServices[s.Name+s.Address] = pong
+	r.registeredServices[s.Name+s.Address] = p
 	//notify the channel to send new message
-	r.chFiredRegisteredService <- pong
+	r.chFiredRegisteredService <- p
 	f = func() {
 		r.Unregister(s)
 	}
@@ -120,17 +145,18 @@ func (r reg) Register(s Service) (f FnUnregister, err error) {
 
 }
 
-func (r reg) pubregister(pong Pong) (err error) {
+func (r reg) pubregister(p Pong) (err error) {
 	var data []byte
-	if data, err = json.Marshal(pong); err != nil {
-		log.Error("publish register failed unmarshal service ", pong.Name, " :", err)
+	p.Timestamps.Registered = time.Now().UnixNano()
+	if data, err = json.Marshal(p); err != nil {
+		log.Error("publish register failed unmarshal service ", p.Name, " :", err)
 		return
 	}
-	if err = r.opts.natsConn.Publish(r.buildMessage("register", pong.Name), data); err != nil {
-		log.Error("publish register failed for service ", pong.Name, " :", err)
+	if err = r.opts.natsConn.Publish(r.buildMessage("register", p.Name), data); err != nil {
+		log.Error("publish register failed for service ", p.Name, " :", err)
 		return
 	}
-	log.Info("Send register for service ", pong.Host, " ", pong.Service)
+	log.Info("Send register for service ", p.Host, " ", p)
 	return
 }
 
@@ -193,7 +219,8 @@ func (r reg) getServices(name string) (res []Service) {
 	var ok bool
 	if servicesMap, ok = r.m[name]; ok && len(servicesMap) > 0 {
 		for _, v := range servicesMap {
-			res = append(res, v.Service)
+			s := v.Service
+			res = append(res, s)
 		}
 		return
 	}
@@ -237,9 +264,9 @@ func (r reg) getinternalService(name string, f Filter) ([]Service, error) {
 	}
 	ch := make(chan Pong)
 	if f != nil {
-		observe.callback = func(pong Pong) {
-			if f(pong.Service) {
-				ch <- pong
+		observe.callback = func(p Pong) {
+			if f(p.Service) {
+				ch <- p
 			}
 		}
 	}
@@ -264,16 +291,25 @@ func (r reg) GetServices(name string) ([]Service, error) {
 	return r.getinternalService(name, nil)
 }
 
-func (r reg) append(s Pong) {
-	if _, ok := r.m[s.Name]; !ok {
-		r.m[s.Name] = make(map[string]Pong)
+func (r reg) append(p Pong) {
+	if _, ok := r.m[p.Name]; !ok {
+		r.m[p.Name] = make(map[string]Pong)
 	}
-	services := r.m[s.Name]
-	services[s.Host+s.Address] = s
+	services := r.m[p.Name]
+	log.Debugf("append %s", p)
+	if p.Timestamps != nil {
+		p.dueTime = time.Unix(0, p.Timestamps.Registered).Add(time.Duration(p.Timestamps.Duration) * time.Millisecond)
+	}
+
+	services[p.Host+p.Address] = p
 }
 
 func (r reg) subregister(msg *nats.Msg) {
 	var s Pong
+	deb := string(msg.Data)
+	if len(deb) == 0 {
+
+	}
 	err := json.Unmarshal(msg.Data, &s)
 	if err != nil {
 		logrus.Errorf("unmarshal error when sub to register: %s", err)
