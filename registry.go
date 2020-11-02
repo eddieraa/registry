@@ -226,19 +226,6 @@ func Connect(opts ...Option) (r Registry, err error) {
 	return
 }
 
-func (r reg) getServices(name string) (res []Service) {
-	var servicesMap map[string]Pong
-	var ok bool
-	if servicesMap, ok = r.m[name]; ok && len(servicesMap) > 0 {
-		for _, v := range servicesMap {
-			s := v.Service
-			res = append(res, s)
-		}
-		return
-	}
-	return
-}
-
 func (r reg) GetService(name string, f Filter) (*Service, error) {
 	services, err := r.getinternalService(name, f)
 	if err != nil {
@@ -253,49 +240,80 @@ func (r reg) GetService(name string, f Filter) (*Service, error) {
 }
 
 func (r reg) getinternalService(name string, f Filter) ([]Service, error) {
-	res := r.getServices(name)
-	if res != nil {
+	//service is already registered
+	if res, ok := r.m[name]; ok {
+		filterdServices := []Service{}
 		if f != nil {
+			arg := &FilterArg{Nb: len(res)}
+			i := 0
 			for _, s := range res {
-				if f(s) {
-					return []Service{s}, nil
+				arg.Service = s.Service
+				arg.Offset = i
+				arg.t = *s.Timestamps
+				if f(arg) {
+					filterdServices = append(filterdServices, s.Service)
 				}
+				i++
 			}
+		} else {
+			for _, s := range res {
+				filterdServices = append(filterdServices, s.Service)
+			}
+		}
+		if len(filterdServices) == 0 {
 			return nil, ErrNotFound
 		}
-		return res, nil
+		return filterdServices, nil
 	}
-	var observe *observe
-	if o, exists := r.observers[name]; !exists {
-		observe = &o
+
+	//service not yet registerd
+	if _, exists := r.observers[name]; !exists {
 		r.Observe(name)
 	}
 	err := r.opts.natsConn.PublishRequest(r.buildMessage("ping", name), r.buildMessage("register", name), nil)
 	if err != nil {
 		return nil, err
 	}
-	ch := make(chan Pong)
+	ch := make(chan *Service)
 	if f != nil {
+		observe := r.observers[name]
+		arg := &FilterArg{Nb: -1, Offset: -1}
 		observe.callback = func(p Pong) {
-			if f(p.Service) {
-				ch <- p
+			arg.Service = p.Service
+			arg.Nb = arg.Nb + 1
+			arg.Offset = arg.Offset + 1
+			arg.t = *p.Timestamps
+			if f(arg) {
+				observe.callback = nil
+				ch <- &p.Service
 			}
 		}
 	}
 
-	//Waiting for context done
+	//create timeout if no service available
+	var serviceFound *Service
 	tk := time.Tick(r.opts.timeout)
 	select {
 	case <-tk:
 		break
-	case <-ch:
+	case serviceFound = <-ch:
 		close(ch)
 		break
 	}
-
-	res = r.getServices(name)
-
-	return res, nil
+	if serviceFound != nil {
+		return []Service{*serviceFound}, nil
+	}
+	if f == nil {
+		if services, ok := r.m[name]; ok {
+			res := make([]Service, 0)
+			for _, v := range services {
+				res = append(res, v.Service)
+			}
+		} else {
+			return nil, ErrNotFound
+		}
+	}
+	return nil, ErrNotFound
 
 }
 

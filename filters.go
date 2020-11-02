@@ -3,23 +3,34 @@ package registry
 import "os"
 
 //Filter used for filtering service
-type Filter func(s Service) bool
+type Filter func(services *FilterArg) (accept bool)
+type FilterArg struct {
+	Nb      int
+	Offset  int
+	Service Service
+	t       Timestamps
+}
 
 //LocalhostFilter return true if hostname is equals to service host
-func LocalhostFilter(hostname string) Filter {
+func LocalhostFilter() Filter {
 	var host string
-	if hostname == "" {
-		host, _ = os.Hostname()
-	}
+	host, _ = os.Hostname()
 
-	fn := func(s Service) bool {
-		if hostname == s.Host {
-			return true
+	fn := func(arg *FilterArg) (accept bool) {
+		return host == arg.Service.Host
+	}
+	return fn
+}
+
+//LoadBalanceFilter basic loadbalancer
+func LoadBalanceFilter() Filter {
+	lastInd := -1
+	fn := func(arg *FilterArg) (accept bool) {
+		lastInd++
+		if lastInd >= arg.Nb {
+			lastInd = 0
 		}
-		if host == s.Host {
-			return true
-		}
-		return false
+		return arg.Offset == lastInd
 	}
 	return fn
 }
