@@ -15,6 +15,7 @@ type Options struct {
 	registerInterval time.Duration
 	natsConn         *nats.Conn
 	mainTopic        string
+	filters          []Filter
 }
 
 var (
@@ -63,5 +64,15 @@ func RegisterInterval(duration time.Duration) Option {
 func MainTopic(topic string) Option {
 	return func(opts *Options) {
 		opts.mainTopic = topic
+	}
+}
+
+//AddFilter add filter
+func AddFilter(f Filter) Option {
+	return func(opts *Options) {
+		if opts.filters == nil {
+			opts.filters = []Filter{}
+		}
+		opts.filters = append(opts.filters, f)
 	}
 }

@@ -28,9 +28,11 @@ func LocalhostFilter() Filter {
 func LoadBalanceFilter() Filter {
 	lastInd := -1
 	fn := func(arg *FilterArg) (accept bool) {
-		lastInd++
-		if lastInd >= arg.Nb {
-			lastInd = 0
+		if arg.Offset == 0 {
+			lastInd++
+			if lastInd >= arg.Nb {
+				lastInd = 0
+			}
 		}
 		return arg.Offset == lastInd
 	}

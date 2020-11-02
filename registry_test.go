@@ -56,5 +56,32 @@ func Test1(t *testing.T) {
 	logrus.Info("nb services ", len(services))
 
 	r.Close()
+	c.Close()
 
+}
+
+func TestLB(t *testing.T) {
+	c, err := nats.Connect("localhost:4222")
+	if err != nil {
+		t.Fatal("Could not connect to nats ", err)
+	}
+	r, err := Connect(Nats(c), Timeout(3000*time.Millisecond), AddFilter(LoadBalanceFilter()))
+	if err != nil {
+		t.Fatal("Could not open registry session: ", err)
+	}
+	name := "httptest"
+	var s *Service
+
+	s, err = r.GetService(name)
+	logrus.Infof("Service %s", s.Address)
+	s, err = r.GetService(name)
+	logrus.Infof("Service %s", s.Address)
+	s, err = r.GetService(name)
+	logrus.Infof("Service %s", s.Address)
+	s, err = r.GetService(name)
+	logrus.Infof("Service %s", s.Address)
+	s, err = r.GetService(name)
+	logrus.Infof("Service %s", s.Address)
+	s, err = r.GetService(name)
+	logrus.Infof("Service %s", s.Address)
 }

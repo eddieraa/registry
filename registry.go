@@ -261,14 +261,18 @@ func chainFilters(pongs map[string]Pong, filters ...Filter) map[string]Pong {
 	return pongs
 }
 
-func (r reg) getinternalService(name string, filters ...Filter) ([]Service, error) {
+func (r reg) getinternalService(name string, serviceFilters ...Filter) ([]Service, error) {
+	filters := serviceFilters
+	if filters == nil {
+		filters = r.opts.filters
+	}
 	//service is already registered
 	if res, ok := r.m[name]; ok {
 		filterdServices := []Service{}
 		pongs := res
 		//Chain filters
 		if filters != nil {
-			pongs = chainFilters(res)
+			pongs = chainFilters(res, filters...)
 		}
 		if len(pongs) == 0 {
 			return nil, ErrNotFound
@@ -283,7 +287,7 @@ func (r reg) getinternalService(name string, filters ...Filter) ([]Service, erro
 	observe := &observe{}
 	r.observers[name] = observe
 	if filters != nil {
-		arg := &FilterArg{Nb: -1, Offset: -1}
+		arg := &FilterArg{Nb: 0, Offset: -1}
 		observe.callback = func(p Pong) {
 			arg.Service = p.Service
 			arg.Nb = arg.Nb + 1
@@ -404,6 +408,7 @@ func (r reg) Close() (err error) {
 		s.Unsubscribe()
 	}
 	r.subscriptions = r.subscriptions[0:0]
+	instance = nil
 	log.Debug("Close registry done")
 	return
 }
