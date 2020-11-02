@@ -239,26 +239,28 @@ func (r reg) GetService(name string, f ...Filter) (*Service, error) {
 
 }
 
-func filterServices(services map[string]Pong, f Filter) map[string]Pong {
-	res := make(map[string]Pong)
+func filterServices(services []Pong, f Filter) []Pong {
+	res := make([]Pong, 0)
 	arg := &FilterArg{Nb: len(services)}
-	i := 0
-	for k, s := range services {
+	for i, s := range services {
 		arg.Service = s.Service
 		arg.Offset = i
 		arg.t = *s.Timestamps
 		if f(arg) {
-			res[k] = s
+			res = append(res, s)
 		}
-		i++
 	}
 	return res
 }
-func chainFilters(pongs map[string]Pong, filters ...Filter) map[string]Pong {
-	for _, f := range filters {
-		pongs = filterServices(pongs, f)
+func chainFilters(pongs map[string]Pong, filters ...Filter) []Pong {
+	res := []Pong{}
+	for _, v := range pongs {
+		res = append(res, v)
 	}
-	return pongs
+	for _, f := range filters {
+		res = filterServices(res, f)
+	}
+	return res
 }
 
 func (r reg) getinternalService(name string, serviceFilters ...Filter) ([]Service, error) {
@@ -269,10 +271,14 @@ func (r reg) getinternalService(name string, serviceFilters ...Filter) ([]Servic
 	//service is already registered
 	if res, ok := r.m[name]; ok {
 		filterdServices := []Service{}
-		pongs := res
+		var pongs []Pong
 		//Chain filters
 		if filters != nil {
 			pongs = chainFilters(res, filters...)
+		} else {
+			for _, p := range res {
+				pongs = append(pongs, p)
+			}
 		}
 		if len(pongs) == 0 {
 			return nil, ErrNotFound
