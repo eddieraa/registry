@@ -17,7 +17,7 @@ import (
 type Registry interface {
 	Register(s Service) (FnUnregister, error)
 	GetServices(name string) ([]Service, error)
-	GetService(name string, filter Filter) (*Service, error)
+	GetService(name string, filters ...Filter) (*Service, error)
 	Observe(serviceName string) error
 	Close() error
 }
@@ -68,7 +68,7 @@ type observe struct {
 
 type reg struct {
 	m         map[string]map[string]Pong
-	observers map[string]observe
+	observers map[string]*observe
 	opts      Options
 
 	//manage Registerd service
@@ -212,7 +212,7 @@ func Connect(opts ...Option) (r Registry, err error) {
 		intanceOnce.Do(func() {
 			instance = &reg{
 				m:                               make(map[string]map[string]Pong),
-				observers:                       make(map[string]observe),
+				observers:                       make(map[string]*observe),
 				opts:                            newOptions(opts...),
 				registeredServices:              make(map[string]Pong),
 				chFiredRegisteredService:        make(chan Pong),
@@ -226,8 +226,8 @@ func Connect(opts ...Option) (r Registry, err error) {
 	return
 }
 
-func (r reg) GetService(name string, f Filter) (*Service, error) {
-	services, err := r.getinternalService(name, f)
+func (r reg) GetService(name string, f ...Filter) (*Service, error) {
+	services, err := r.getinternalService(name, f...)
 	if err != nil {
 		return nil, err
 	}
@@ -239,55 +239,77 @@ func (r reg) GetService(name string, f Filter) (*Service, error) {
 
 }
 
-func (r reg) getinternalService(name string, f Filter) ([]Service, error) {
+func filterServices(services map[string]Pong, f Filter) map[string]Pong {
+	res := make(map[string]Pong)
+	arg := &FilterArg{Nb: len(services)}
+	i := 0
+	for k, s := range services {
+		arg.Service = s.Service
+		arg.Offset = i
+		arg.t = *s.Timestamps
+		if f(arg) {
+			res[k] = s
+		}
+		i++
+	}
+	return res
+}
+func chainFilters(pongs map[string]Pong, filters ...Filter) map[string]Pong {
+	for _, f := range filters {
+		pongs = filterServices(pongs, f)
+	}
+	return pongs
+}
+
+func (r reg) getinternalService(name string, filters ...Filter) ([]Service, error) {
 	//service is already registered
 	if res, ok := r.m[name]; ok {
 		filterdServices := []Service{}
-		if f != nil {
-			arg := &FilterArg{Nb: len(res)}
-			i := 0
-			for _, s := range res {
-				arg.Service = s.Service
-				arg.Offset = i
-				arg.t = *s.Timestamps
-				if f(arg) {
-					filterdServices = append(filterdServices, s.Service)
-				}
-				i++
-			}
-		} else {
-			for _, s := range res {
-				filterdServices = append(filterdServices, s.Service)
-			}
+		pongs := res
+		//Chain filters
+		if filters != nil {
+			pongs = chainFilters(res)
 		}
-		if len(filterdServices) == 0 {
+		if len(pongs) == 0 {
 			return nil, ErrNotFound
+		}
+		for _, v := range pongs {
+			filterdServices = append(filterdServices, v.Service)
 		}
 		return filterdServices, nil
 	}
 
-	//service not yet registerd
-	if _, exists := r.observers[name]; !exists {
-		r.Observe(name)
-	}
-	err := r.opts.natsConn.PublishRequest(r.buildMessage("ping", name), r.buildMessage("register", name), nil)
-	if err != nil {
-		return nil, err
-	}
 	ch := make(chan *Service)
-	if f != nil {
-		observe := r.observers[name]
+	observe := &observe{}
+	r.observers[name] = observe
+	if filters != nil {
 		arg := &FilterArg{Nb: -1, Offset: -1}
 		observe.callback = func(p Pong) {
 			arg.Service = p.Service
 			arg.Nb = arg.Nb + 1
 			arg.Offset = arg.Offset + 1
 			arg.t = *p.Timestamps
-			if f(arg) {
+			ok := true
+			for _, f := range filters {
+				if !f(arg) {
+					ok = false
+				}
+			}
+			if ok {
 				observe.callback = nil
 				ch <- &p.Service
 			}
 		}
+	} else {
+		observe.callback = func(p Pong) {
+			observe.callback = nil
+			ch <- &p.Service
+		}
+	}
+	r.Observe(name)
+	err := r.opts.natsConn.PublishRequest(r.buildMessage("ping", name), r.buildMessage("register", name), nil)
+	if err != nil {
+		return nil, err
 	}
 
 	//create timeout if no service available
@@ -303,22 +325,12 @@ func (r reg) getinternalService(name string, f Filter) ([]Service, error) {
 	if serviceFound != nil {
 		return []Service{*serviceFound}, nil
 	}
-	if f == nil {
-		if services, ok := r.m[name]; ok {
-			res := make([]Service, 0)
-			for _, v := range services {
-				res = append(res, v.Service)
-			}
-		} else {
-			return nil, ErrNotFound
-		}
-	}
 	return nil, ErrNotFound
 
 }
 
 func (r reg) GetServices(name string) ([]Service, error) {
-	return r.getinternalService(name, nil)
+	return r.getinternalService(name)
 }
 
 func (r reg) append(p Pong) {
@@ -336,14 +348,15 @@ func (r reg) append(p Pong) {
 
 func (r reg) subregister(msg *nats.Msg) {
 	var s Pong
-	deb := string(msg.Data)
-	if len(deb) == 0 {
-
-	}
 	err := json.Unmarshal(msg.Data, &s)
 	if err != nil {
 		logrus.Errorf("unmarshal error when sub to register: %s", err)
 		return
+	}
+	if o, ok := r.observers[s.Name]; ok {
+		if o.callback != nil {
+			o.callback(s)
+		}
 	}
 	r.append(s)
 }
@@ -359,9 +372,12 @@ func (r reg) subunregister(msg *nats.Msg) {
 		return
 	}
 	delete(r.m[s.Name], s.Host+s.Address)
-
+	logrus.Debugf("Unregister service %s/%s", s.Name, s.Address)
 }
 func (r reg) Observe(service string) error {
+	if _, ok := r.observers[service]; !ok {
+		r.observers[service] = &observe{}
+	}
 	s, err := r.opts.natsConn.Subscribe(r.buildMessage("register", service), r.subregister)
 	if err != nil {
 		return err
@@ -372,7 +388,6 @@ func (r reg) Observe(service string) error {
 		return err
 	}
 	r.subscriptions = append(r.subscriptions, s)
-	r.observers[service] = observe{}
 	return nil
 }
 

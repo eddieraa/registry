@@ -4,6 +4,8 @@ import "os"
 
 //Filter used for filtering service
 type Filter func(services *FilterArg) (accept bool)
+
+//FilterArg argument used in Filter
 type FilterArg struct {
 	Nb      int
 	Offset  int
