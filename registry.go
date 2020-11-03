@@ -174,9 +174,10 @@ func (r reg) pubregister(p Pong) (err error) {
 
 func (r reg) registerServiceInContinue() {
 	log.Infof("Start go routine for register services every %s ", r.opts.registerInterval)
+	tk := time.Tick(r.opts.registerInterval)
+	tkDue := time.Tick(r.opts.checkDueTime)
 stop:
 	for {
-		tk := time.Tick(r.opts.registerInterval)
 		select {
 		case <-r.chStopChannelRegisteredServices:
 			log.Info("Receive stop in channel")
@@ -187,9 +188,28 @@ stop:
 			}
 		case pong := <-r.chFiredRegisteredService:
 			r.pubregister(pong)
+		case <-tkDue:
+			r.checkDueTime()
 		}
 	}
 	log.Info("Stop go routine registerSerivceInContinue")
+}
+
+func (r reg) checkDueTime() {
+	toDel := []string{}
+	now := time.Now()
+	for sname, v := range r.m {
+		for k, s := range v {
+			if now.After(s.dueTime) {
+				toDel = append(toDel, sname+" "+k)
+			}
+		}
+	}
+	for _, k := range toDel {
+		tks := strings.Split(k, " ")
+		logrus.Info("Delete entry ", k)
+		delete(r.m[tks[0]], tks[1])
+	}
 }
 
 func (r reg) Unregister(s Service) (err error) {
@@ -324,10 +344,13 @@ func (r reg) append(p Pong) {
 		r.m[p.Name] = make(map[string]Pong)
 	}
 	services := r.m[p.Name]
-	log.Debugf("append %s", p)
+
 	if p.Timestamps != nil {
-		p.dueTime = time.Unix(0, p.Timestamps.Registered).Add(time.Duration(p.Timestamps.Duration) * time.Millisecond)
+		d := int(float32(p.Timestamps.Duration) * r.opts.dueDurationFactor)
+		p.dueTime = time.Unix(0, p.Timestamps.Registered).Add(time.Duration(d) * time.Millisecond)
+		log.Debug(p.dueTime.Local().Format(time.ANSIC))
 	}
+	log.Debugf("append %s %s", p.Service)
 
 	services[p.Host+p.Address] = p
 }
