@@ -246,7 +246,9 @@ func chainFilters(pongs map[string]Pong, filters ...Filter) []Service {
 	}
 	if filters != nil {
 		for _, f := range filters {
-			services = f(services)
+			if f != nil {
+				services = f(services)
+			}
 		}
 	}
 
@@ -264,8 +266,7 @@ func (r reg) getinternalService(name string, serviceFilters ...Filter) ([]Servic
 	}
 	//service is already registered
 	if res, ok := r.m[name]; ok {
-		filterdServices := chainFilters(res, filters...)
-		return filterdServices, nil
+		return chainFilters(res, filters...), nil
 	}
 
 	ch := make(chan *Service)
