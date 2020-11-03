@@ -84,4 +84,12 @@ func TestLB(t *testing.T) {
 	logrus.Infof("Service %s", s.Address)
 	s, err = r.GetService(name)
 	logrus.Infof("Service %s", s.Address)
+	s, err = r.GetService(name)
+	logrus.Infof("Service %s", s.Address)
+	s, err = r.GetService(name)
+	logrus.Infof("Service %s", s.Address)
+	s, err = r.GetService(name)
+	logrus.Infof("Service %s", s.Address)
+	s, err = r.GetService(name)
+	logrus.Infof("Service %s", s.Address)
 }

@@ -239,26 +239,20 @@ func (r reg) GetService(name string, f ...Filter) (*Service, error) {
 
 }
 
-func filterServices(services []Pong, f Filter) []Pong {
-	res := make([]Pong, 0)
-	arg := &FilterArg{Nb: len(services)}
-	for i, s := range services {
-		arg.Service = s.Service
-		arg.Offset = i
-		arg.t = *s.Timestamps
-		if f(arg) {
-			res = append(res, s)
+func chainFilters(pongs map[string]Pong, filters ...Filter) []Service {
+	services := []Pong{}
+	for _, v := range pongs {
+		services = append(services, v)
+	}
+	if filters != nil {
+		for _, f := range filters {
+			services = f(services)
 		}
 	}
-	return res
-}
-func chainFilters(pongs map[string]Pong, filters ...Filter) []Pong {
-	res := []Pong{}
-	for _, v := range pongs {
-		res = append(res, v)
-	}
-	for _, f := range filters {
-		res = filterServices(res, f)
+
+	res := make([]Service, len(services))
+	for i, p := range services {
+		res[i] = p.Service
 	}
 	return res
 }
@@ -270,22 +264,7 @@ func (r reg) getinternalService(name string, serviceFilters ...Filter) ([]Servic
 	}
 	//service is already registered
 	if res, ok := r.m[name]; ok {
-		filterdServices := []Service{}
-		var pongs []Pong
-		//Chain filters
-		if filters != nil {
-			pongs = chainFilters(res, filters...)
-		} else {
-			for _, p := range res {
-				pongs = append(pongs, p)
-			}
-		}
-		if len(pongs) == 0 {
-			return nil, ErrNotFound
-		}
-		for _, v := range pongs {
-			filterdServices = append(filterdServices, v.Service)
-		}
+		filterdServices := chainFilters(res, filters...)
 		return filterdServices, nil
 	}
 
@@ -293,15 +272,11 @@ func (r reg) getinternalService(name string, serviceFilters ...Filter) ([]Servic
 	observe := &observe{}
 	r.observers[name] = observe
 	if filters != nil {
-		arg := &FilterArg{Nb: 0, Offset: -1}
 		observe.callback = func(p Pong) {
-			arg.Service = p.Service
-			arg.Nb = arg.Nb + 1
-			arg.Offset = arg.Offset + 1
-			arg.t = *p.Timestamps
 			ok := true
+			arg := []Pong{p}
 			for _, f := range filters {
-				if !f(arg) {
+				if filtered := f(arg); filtered == nil || len(filtered) == 0 {
 					ok = false
 				}
 			}
