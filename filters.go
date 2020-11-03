@@ -29,7 +29,7 @@ func LoadBalanceFilter() Filter {
 	lastInd := -1
 	fn := func(services []Pong) []Pong {
 		lastInd++
-		if len(services) >= lastInd {
+		if lastInd >= len(services) {
 			lastInd = 0
 		}
 		return []Pong{services[lastInd]}
