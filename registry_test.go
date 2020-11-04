@@ -74,6 +74,13 @@ func TestLB(t *testing.T) {
 
 	s, err = r.GetService(name)
 	logrus.Infof("Service %s", s)
+
+	r.Close()
+	r, err = Connect(Nats(c), Timeout(3000*time.Millisecond), AddFilter(LoadBalanceFilter()))
+	if err != nil {
+		t.Fatal("Could not open registry session: ", err)
+	}
+
 	s, err = r.GetService(name)
 	logrus.Infof("Service %s", s.Address)
 	s, err = r.GetService(name)

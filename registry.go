@@ -174,22 +174,44 @@ func (r reg) pubregister(p Pong) (err error) {
 
 func (r reg) registerServiceInContinue() {
 	log.Infof("Start go routine for register services every %s ", r.opts.registerInterval)
+	tk := time.NewTicker(r.opts.registerInterval)
+	tkDue := time.NewTicker(r.opts.checkDueTime)
 stop:
 	for {
-		tk := time.Tick(r.opts.registerInterval)
 		select {
 		case <-r.chStopChannelRegisteredServices:
 			log.Info("Receive stop in channel")
 			break stop
-		case <-tk:
+		case <-tk.C:
 			for _, pong := range r.registeredServices {
 				r.pubregister(pong)
 			}
 		case pong := <-r.chFiredRegisteredService:
 			r.pubregister(pong)
+		case <-tkDue.C:
+			r.checkDueTime()
 		}
 	}
+	tk.Stop()
+	tkDue.Stop()
 	log.Info("Stop go routine registerSerivceInContinue")
+}
+
+func (r reg) checkDueTime() {
+	toDel := []string{}
+	now := time.Now()
+	for sname, v := range r.m {
+		for k, s := range v {
+			if now.After(s.dueTime) {
+				toDel = append(toDel, sname+" "+k)
+			}
+		}
+	}
+	for _, k := range toDel {
+		tks := strings.Split(k, " ")
+		logrus.Info("Delete entry ", k)
+		delete(r.m[tks[0]], tks[1])
+	}
 }
 
 func (r reg) Unregister(s Service) (err error) {
@@ -302,9 +324,9 @@ func (r reg) getinternalService(name string, serviceFilters ...Filter) ([]Servic
 
 	//create timeout if no service available
 	var serviceFound *Service
-	tk := time.Tick(r.opts.timeout)
+	tk := time.NewTimer(r.opts.timeout)
 	select {
-	case <-tk:
+	case <-tk.C:
 		break
 	case serviceFound = <-ch:
 		close(ch)
@@ -313,6 +335,7 @@ func (r reg) getinternalService(name string, serviceFilters ...Filter) ([]Servic
 	if serviceFound != nil {
 		return []Service{*serviceFound}, nil
 	}
+	tk.Stop()
 	return nil, ErrNotFound
 
 }
@@ -326,10 +349,13 @@ func (r reg) append(p Pong) {
 		r.m[p.Name] = make(map[string]Pong)
 	}
 	services := r.m[p.Name]
-	log.Debugf("append %s", p)
+
 	if p.Timestamps != nil {
-		p.dueTime = time.Unix(0, p.Timestamps.Registered).Add(time.Duration(p.Timestamps.Duration) * time.Millisecond)
+		d := int(float32(p.Timestamps.Duration) * r.opts.dueDurationFactor)
+		p.dueTime = time.Unix(0, p.Timestamps.Registered).Add(time.Duration(d) * time.Millisecond)
+		log.Debug(p.dueTime.Local().Format(time.ANSIC))
 	}
+	log.Debugf("append %s ", p.Service)
 
 	services[p.Host+p.Address] = p
 }
@@ -393,6 +419,7 @@ func (r reg) Close() (err error) {
 	}
 	r.subscriptions = r.subscriptions[0:0]
 	instance = nil
+	intanceOnce = sync.Once{}
 	log.Debug("Close registry done")
 	return
 }
