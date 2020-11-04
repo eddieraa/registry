@@ -33,6 +33,13 @@ var (
 	DefaultDueDurationFactor = float32(1.5)
 )
 
+//SetFlags set go flags.
+// Call this func if you want to override default parameters with command line argument
+func SetFlags() {
+	//flag.IntVar(&DefaultTimeout, "registry-timeout", 100,"s")
+
+}
+
 func newOptions(opts ...Option) Options {
 	options := Options{
 		timeout:           DefaultTimeout,

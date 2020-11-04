@@ -290,7 +290,9 @@ func (r reg) getinternalService(name string, serviceFilters ...Filter) ([]Servic
 	if res, ok := r.m[name]; ok {
 		return chainFilters(res, filters...), nil
 	}
-
+	//service not yet registered
+	//register invoke r.Observe(service) with a callback containing a channel
+	//the callback apply filters on service and write in the channel when a service is ok with the filters
 	ch := make(chan *Service)
 	observe := &observe{}
 	r.observers[name] = observe
