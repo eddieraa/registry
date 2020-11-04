@@ -16,9 +16,11 @@ func main() {
 	flag.StringVar(&serviceName, "service-name", "httptest", "http service name")
 	var natsURL string
 	flag.StringVar(&natsURL, "nats-url", "localhost:4222", "NATS server URL ")
-	flag.Parse()
 	var loadBalance bool
 	flag.BoolVar(&loadBalance, "load-balance", false, "Activate load balancing")
+
+	//parse
+	flag.Parse()
 
 	conn, err := nats.Connect(natsURL)
 	if err != nil {
