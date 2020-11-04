@@ -353,7 +353,7 @@ func (r reg) append(p Pong) {
 		p.dueTime = time.Unix(0, p.Timestamps.Registered).Add(time.Duration(d) * time.Millisecond)
 		log.Debug(p.dueTime.Local().Format(time.ANSIC))
 	}
-	log.Debugf("append %s %s", p.Service)
+	log.Debugf("append %s ", p.Service)
 
 	services[p.Host+p.Address] = p
 }
@@ -417,6 +417,7 @@ func (r reg) Close() (err error) {
 	}
 	r.subscriptions = r.subscriptions[0:0]
 	instance = nil
+	intanceOnce = sync.Once{}
 	log.Debug("Close registry done")
 	return
 }
