@@ -36,6 +36,9 @@ func main() {
 	flag.StringVar(&serviceName, "service-name", "httptest", "http service name")
 	var natsURL string
 	flag.StringVar(&natsURL, "nats-url", "localhost:4222", "NATS server URL ")
+	var close bool
+	flag.BoolVar(&close, "close", true, "do not unregister")
+
 	flag.Parse()
 
 	addr := localfreeaddr()
@@ -62,8 +65,11 @@ func main() {
 		fmt.Printf("Stop and unregister\n")
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
-		unregister()
-		r.Close()
+		if close {
+			unregister()
+			r.Close()
+		}
+
 		s.Shutdown(ctx)
 	}()
 

@@ -11,20 +11,26 @@ type Option func(opts *Options)
 
 //Options all configurable option
 type Options struct {
-	timeout          time.Duration
-	registerInterval time.Duration
-	natsConn         *nats.Conn
-	mainTopic        string
-	filters          []Filter
+	timeout           time.Duration
+	registerInterval  time.Duration
+	checkDueTime      time.Duration
+	natsConn          *nats.Conn
+	mainTopic         string
+	filters           []Filter
+	dueDurationFactor float32
 }
 
 var (
-	//DefaultTimeout timeout on for GetServices func
+	//DefaultTimeout timeout for GetServices
 	DefaultTimeout = 100 * time.Millisecond
 	//DefaultRegisterInterval time between 2 registration
 	DefaultRegisterInterval = 20 * time.Second
+	//DefaultCheckDueInterval time between 2 checks
+	DefaultCheckDueInterval = 200 * time.Millisecond
 	//DefaultMainTopic default message base. All topics will start with this message
 	DefaultMainTopic string
+	//DefaultDueDurationFactor service expire when currentTime > lastRegisteredTime + registerInternal * dueDrationFactor
+	DefaultDueDurationFactor = float32(1.5)
 )
 
 //SetFlags set go flags.
@@ -36,9 +42,11 @@ func SetFlags() {
 
 func newOptions(opts ...Option) Options {
 	options := Options{
-		timeout:          DefaultTimeout,
-		registerInterval: DefaultRegisterInterval,
-		mainTopic:        DefaultMainTopic,
+		timeout:           DefaultTimeout,
+		registerInterval:  DefaultRegisterInterval,
+		checkDueTime:      DefaultCheckDueInterval,
+		mainTopic:         DefaultMainTopic,
+		dueDurationFactor: DefaultDueDurationFactor,
 	}
 	for _, o := range opts {
 		o(&options)
