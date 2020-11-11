@@ -13,6 +13,7 @@ import (
 
 	"github.com/eddieraa/registry"
 	"github.com/nats-io/nats.go"
+	"github.com/sirupsen/logrus"
 )
 
 func localfreeaddr() string {
@@ -40,6 +41,7 @@ func main() {
 	flag.BoolVar(&close, "close", true, "do not unregister")
 
 	flag.Parse()
+	logrus.SetLevel(logrus.DebugLevel)
 
 	addr := localfreeaddr()
 	println("Start http server on address ", addr)

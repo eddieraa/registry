@@ -139,6 +139,7 @@ func (r reg) subToPing(p *Pong) {
 	if err != nil {
 		log.Error("subToPing: ", err)
 	} else {
+		log.Debugf("Subscribe for %s OK", s.Subject)
 		r.subscriptions = append(r.subscriptions, s)
 	}
 }

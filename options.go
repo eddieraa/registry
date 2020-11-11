@@ -28,7 +28,7 @@ var (
 	//DefaultCheckDueInterval time between 2 checks
 	DefaultCheckDueInterval = 200 * time.Millisecond
 	//DefaultMainTopic default message base. All topics will start with this message
-	DefaultMainTopic string
+	DefaultMainTopic = "registry"
 	//DefaultDueDurationFactor service expire when currentTime > lastRegisteredTime + registerInternal * dueDrationFactor
 	DefaultDueDurationFactor = float32(1.5)
 )
