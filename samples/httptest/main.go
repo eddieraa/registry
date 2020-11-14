@@ -60,7 +60,8 @@ func main() {
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
 	s := &http.Server{Addr: addr, Handler: &http.ServeMux{}}
 	s.Handler = http.HandlerFunc(func(out http.ResponseWriter, req *http.Request) {
-		out.Write([]byte(fmt.Sprint("Hello from ", addr, "\n")))
+		out.Write([]byte(fmt.Sprint("Hello from ", addr, " URL: ", req.URL, " RequestURI: ", req.RequestURI+" host("+req.URL.Host+") path("+req.URL.Path+") rawPath ("+req.URL.RawPath+")\n")))
+
 	})
 	go func() {
 		<-sigs
