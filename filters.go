@@ -27,9 +27,14 @@ func LocalhostFilter() Filter {
 //LoadBalanceFilter basic loadbalancer
 func LoadBalanceFilter() Filter {
 	lastInd := -1
+	emptyServices := []*Pong{}
 	fn := func(services []*Pong) []*Pong {
 		lastInd++
-		if lastInd >= len(services) {
+		size := len(services)
+		if size == 0 {
+			return emptyServices
+		}
+		if lastInd >= size {
 			lastInd = 0
 		}
 		return []*Pong{services[lastInd]}
