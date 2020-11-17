@@ -3,6 +3,7 @@ package nats
 import (
 	"github.com/eddieraa/registry"
 	"github.com/nats-io/nats.go"
+	"github.com/sirupsen/logrus"
 )
 
 type pubsub struct {
@@ -20,6 +21,7 @@ func NewPub(c *nats.Conn) registry.Pubsub {
 	return pubsub
 }
 func (pb *pubsub) Sub(topic string, f func(m *registry.PubsubMsg)) (registry.Subscription, error) {
+	logrus.Debug("subscribe to: ", topic)
 	subscript, err := pb.c.Subscribe(topic, func(m *nats.Msg) {
 		f(&registry.PubsubMsg{Subject: m.Subject, Data: m.Data})
 	})
@@ -27,6 +29,7 @@ func (pb *pubsub) Sub(topic string, f func(m *registry.PubsubMsg)) (registry.Sub
 	return s, err
 }
 func (pb *pubsub) Pub(topic string, data []byte) error {
+	logrus.Debug("publish: ", topic)
 	return pb.c.Publish(topic, data)
 }
 

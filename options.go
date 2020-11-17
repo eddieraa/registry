@@ -15,6 +15,7 @@ type Options struct {
 	pubsub            Pubsub
 	mainTopic         string
 	filters           []Filter
+	observeFilters    []ObserveFilter
 	dueDurationFactor float32
 }
 
@@ -45,6 +46,8 @@ func newOptions(opts ...Option) Options {
 		checkDueTime:      DefaultCheckDueInterval,
 		mainTopic:         DefaultMainTopic,
 		dueDurationFactor: DefaultDueDurationFactor,
+		filters:           make([]Filter, 0),
+		observeFilters:    make([]ObserveFilter, 0),
 	}
 	for _, o := range opts {
 		o(&options)
@@ -83,9 +86,13 @@ func MainTopic(topic string) Option {
 //AddFilter add filter
 func AddFilter(f Filter) Option {
 	return func(opts *Options) {
-		if opts.filters == nil {
-			opts.filters = []Filter{}
-		}
 		opts.filters = append(opts.filters, f)
+	}
+}
+
+//AddObserveFilter adding filter
+func AddObserveFilter(f ObserveFilter) Option {
+	return func(opts *Options) {
+		opts.observeFilters = append(opts.observeFilters, f)
 	}
 }

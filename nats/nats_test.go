@@ -20,7 +20,7 @@ func Test1(t *testing.T) {
 	if err != nil {
 		t.Fatal("Could not open registry session: ", err)
 	}
-
+	r.Observe("*")
 	services, err := r.GetServices("httptest")
 	if err != nil {
 		t.Error("Could not get services ", err)

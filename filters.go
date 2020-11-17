@@ -4,7 +4,13 @@ import "os"
 
 //Filter used for filtering service
 //do not return nil
+//Ex Load Balancing
 type Filter func(services []*Pong) []*Pong
+
+//ObserveFilter used to accept (or not) new registered service.
+//
+//Ex: you want only service on same host
+type ObserveFilter func(s *Pong) bool
 
 //LocalhostFilter return true if hostname is equals to service host
 func LocalhostFilter() Filter {

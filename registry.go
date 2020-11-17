@@ -96,13 +96,13 @@ var (
 func (r reg) buildMessage(message, service string, args ...string) string {
 	var b strings.Builder
 	b.WriteString(r.opts.mainTopic)
-	b.WriteString("/")
+	b.WriteString(".")
 	b.WriteString(message)
-	b.WriteString("/")
+	b.WriteString(".")
 	b.WriteString(service)
 	if args != nil {
 		for _, s := range args {
-			b.WriteString("/")
+			b.WriteString(".")
 			b.WriteString(s)
 		}
 	}
@@ -348,10 +348,17 @@ func (r reg) subregister(msg *PubsubMsg) {
 		logrus.Errorf("unmarshal error when sub to register: %s", err)
 		return
 	}
+	for _, f := range r.opts.observeFilters {
+		if !f(p) {
+			return
+		}
+	}
 	if o, ok := r.observers[p.Name]; ok {
 		if o.callback != nil {
 			o.callback(p)
 		}
+	} else {
+		r.observers[p.Name] = &observe{}
 	}
 	p = r.ser.LoadOrStore(p)
 	if p.Timestamps != nil {
