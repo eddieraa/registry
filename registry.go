@@ -8,7 +8,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/nats-io/nats.go"
 	"github.com/sirupsen/logrus"
 	log "github.com/sirupsen/logrus"
 )
@@ -83,7 +82,7 @@ type reg struct {
 
 	//references to all subscriptions to nats
 	//these subscriptions unsubscripe when Close function will be call
-	subscriptions []*nats.Subscription
+	subscriptions []Subscription
 }
 
 var (
@@ -124,21 +123,14 @@ func (p Pong) String() string {
 
 func (r reg) subToPing(p *Pong) {
 	log.Info("Sub to ping for service ", p.Name, " ", p.Address)
-	fn := func(m *nats.Msg) {
-		data, err := json.Marshal(p)
-		if err == nil {
-			log.Info("Respond to ping ", m.Reply, " ", p.Name, " ", p.Address)
-			m.Respond(data)
-		} else {
-			log.Errorf("Unable to marchal pong for service %s error is: %s", p.Name, err)
-		}
-
+	fn := func(m *PubsubMsg) {
+		r.pubregister(p)
 	}
-	s, err := r.opts.natsConn.Subscribe(r.buildMessage("ping", p.Name), fn)
+	s, err := r.opts.pubsub.Sub(r.buildMessage("ping", p.Name), fn)
 	if err != nil {
 		log.Error("subToPing: ", err)
 	} else {
-		log.Debugf("Subscribe for %s OK", s.Subject)
+		log.Debugf("Subscribe for %s OK", s.Subject())
 		r.subscriptions = append(r.subscriptions, s)
 	}
 }
@@ -165,7 +157,7 @@ func (r reg) pubregister(p *Pong) (err error) {
 		log.Error("publish register failed unmarshal service ", p.Name, " :", err)
 		return
 	}
-	if err = r.opts.natsConn.Publish(r.buildMessage("register", p.Name), data); err != nil {
+	if err = r.opts.pubsub.Pub(r.buildMessage("register", p.Name), data); err != nil {
 		log.Error("publish register failed for service ", p.Name, " :", err)
 		return
 	}
@@ -223,7 +215,7 @@ func (r reg) Unregister(s Service) (err error) {
 	if data, err = json.Marshal(s); err != nil {
 		return
 	}
-	err = r.opts.natsConn.Publish(r.buildMessage("unregister", s.Name), data)
+	err = r.opts.pubsub.Pub(r.buildMessage("unregister", s.Name), data)
 	if r.registeredServices != nil {
 		delete(r.registeredServices, s.Name+s.Address)
 	}
@@ -243,7 +235,7 @@ func Connect(opts ...Option) (r Registry, err error) {
 				registeredServices:              make(map[string]*Pong),
 				chFiredRegisteredService:        make(chan *Pong),
 				chStopChannelRegisteredServices: make(chan bool),
-				subscriptions:                   make([]*nats.Subscription, 0),
+				subscriptions:                   make([]Subscription, 0),
 			}
 			go instance.registerServiceInContinue()
 		})
@@ -322,7 +314,7 @@ func (r reg) getinternalService(name string, serviceFilters ...Filter) ([]Servic
 		}
 	}
 	r.Observe(name)
-	err := r.opts.natsConn.PublishRequest(r.buildMessage("ping", name), r.buildMessage("register", name), nil)
+	err := r.opts.pubsub.Pub(r.buildMessage("ping", name), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -349,7 +341,7 @@ func (r reg) GetServices(name string) ([]Service, error) {
 	return r.getinternalService(name)
 }
 
-func (r reg) subregister(msg *nats.Msg) {
+func (r reg) subregister(msg *PubsubMsg) {
 	var p *Pong
 	err := json.Unmarshal(msg.Data, &p)
 	if err != nil {
@@ -371,7 +363,7 @@ func (r reg) subregister(msg *nats.Msg) {
 
 }
 
-func (r reg) subunregister(msg *nats.Msg) {
+func (r reg) subunregister(msg *PubsubMsg) {
 	var s Service
 	err := json.Unmarshal(msg.Data, &s)
 	if err != nil {
@@ -386,12 +378,12 @@ func (r reg) Observe(service string) error {
 	if _, ok := r.observers[service]; !ok {
 		r.observers[service] = &observe{}
 	}
-	s, err := r.opts.natsConn.Subscribe(r.buildMessage("register", service), r.subregister)
+	s, err := r.opts.pubsub.Sub(r.buildMessage("register", service), r.subregister)
 	if err != nil {
 		return err
 	}
 	r.subscriptions = append(r.subscriptions, s)
-	s, err = r.opts.natsConn.Subscribe(r.buildMessage("unregister", service), r.subunregister)
+	s, err = r.opts.pubsub.Sub(r.buildMessage("unregister", service), r.subunregister)
 	if err != nil {
 		return err
 	}
@@ -409,7 +401,7 @@ func (r reg) Close() (err error) {
 		r.Unregister(s.Service)
 	}
 	for _, s := range r.subscriptions {
-		s.Unsubscribe()
+		s.Unsub()
 	}
 	r.subscriptions = r.subscriptions[0:0]
 	instance = nil

@@ -2,8 +2,6 @@ package registry
 
 import (
 	"time"
-
-	"github.com/nats-io/nats.go"
 )
 
 //Option option func
@@ -14,7 +12,7 @@ type Options struct {
 	timeout           time.Duration
 	registerInterval  time.Duration
 	checkDueTime      time.Duration
-	natsConn          *nats.Conn
+	pubsub            Pubsub
 	mainTopic         string
 	filters           []Filter
 	dueDurationFactor float32
@@ -54,10 +52,10 @@ func newOptions(opts ...Option) Options {
 	return options
 }
 
-//Nats initialyse service registry with nats connection
-func Nats(conn *nats.Conn) Option {
+//WithPubsub initialyse service registry with nats connection
+func WithPubsub(pb Pubsub) Option {
 	return func(opts *Options) {
-		opts.natsConn = conn
+		opts.pubsub = pb
 	}
 }
 

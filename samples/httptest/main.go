@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"flag"
 	"fmt"
@@ -8,10 +9,12 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
 	"github.com/eddieraa/registry"
+	pb "github.com/eddieraa/registry/nats"
 	"github.com/nats-io/nats.go"
 	"github.com/sirupsen/logrus"
 )
@@ -49,7 +52,7 @@ func main() {
 	if err != nil {
 		panic(fmt.Sprint("Could not connect to nats (", natsURL, "): ", err))
 	}
-	r, err := registry.Connect(registry.Nats(conn))
+	r, err := registry.Connect(pb.Nats(conn))
 	if err != nil {
 		panic(fmt.Sprint("Could not create registry ", err))
 	}
@@ -58,11 +61,32 @@ func main() {
 	//Intercep CTRL-C
 	sigs := make(chan os.Signal, 1)
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
-	s := &http.Server{Addr: addr, Handler: &http.ServeMux{}}
-	s.Handler = http.HandlerFunc(func(out http.ResponseWriter, req *http.Request) {
-		out.Write([]byte(fmt.Sprint("Hello from ", addr, " URL: ", req.URL, " RequestURI: ", req.RequestURI+" host("+req.URL.Host+") path("+req.URL.Path+") rawPath ("+req.URL.RawPath+")\n")))
+	handler := http.NewServeMux()
+	s := &http.Server{Addr: addr, Handler: handler}
+	count := 0
+	handler.HandleFunc("/httptest", func(out http.ResponseWriter, req *http.Request) {
 
+		var buf bytes.Buffer
+		buf.WriteString(fmt.Sprint("Hello from ", addr, " URL: ", req.URL, " RequestURI: ", req.RequestURI+" host("+req.URL.Host+") path("+req.URL.Path+") rawPath ("+req.URL.RawPath+")\n"))
+		//buf.WriteString(fmt.Sprint("Header: ", req.Header))
+		// Loop through headers
+		for name, headers := range req.Header {
+			name = strings.ToLower(name)
+			for _, h := range headers {
+				buf.WriteString(fmt.Sprintf("%v: %v\n", name, h))
+			}
+		}
+
+		out.Write(buf.Bytes())
+		if count%100 == 0 {
+			println()
+			logrus.Print(count)
+		} else {
+			print(".")
+		}
+		count++
 	})
+
 	go func() {
 		<-sigs
 		fmt.Printf("Stop and unregister\n")
