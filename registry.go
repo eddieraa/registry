@@ -15,6 +15,7 @@ import (
 //Registry Register, Unregister
 type Registry interface {
 	Register(s Service) (FnUnregister, error)
+	Unregister(s Service) error
 	GetServices(name string) ([]Service, error)
 	GetService(name string, filters ...Filter) (*Service, error)
 	Observe(serviceName string) error
@@ -35,8 +36,21 @@ type Pong struct {
 	Timestamps *Timestamps `json:"t,omitempty"`
 }
 
+//Event represent event (register|unregister|unavailbale)
+type Event string
+
+const (
+	//Register register event
+	Register Event = "register"
+	//Unregister unregister event
+	Unregister Event = "unregister"
+)
+
 //FnUnregister call this func for unregister the service
 type FnUnregister func()
+
+//ObserverEvent event tigered
+type ObserverEvent func(s Service, ev Event)
 
 //Service service struct
 type Service struct {
@@ -136,7 +150,9 @@ func (r reg) subToPing(p *Pong) {
 }
 
 func (r reg) Register(s Service) (f FnUnregister, err error) {
-	f = func() {}
+	if s.Host == "" {
+		s.Host = r.opts.hostname
+	}
 	p := &Pong{Service: s, Timestamps: &Timestamps{Registered: time.Now().UnixNano(), Duration: int(r.opts.registerInterval.Milliseconds())}}
 	r.subToPing(p)
 
@@ -360,7 +376,10 @@ func (r reg) subregister(msg *PubsubMsg) {
 	} else {
 		r.observers[p.Name] = &observe{}
 	}
-	p = r.ser.LoadOrStore(p)
+	var alreadyExist bool
+	if p, alreadyExist = r.ser.LoadOrStore(p); !alreadyExist && r.opts.observerEvent != nil {
+		r.opts.observerEvent(p.Service, Register)
+	}
 	if p.Timestamps != nil {
 		d := int(float32(p.Timestamps.Duration) * r.opts.dueDurationFactor)
 		p.dueTime = time.Unix(0, p.Timestamps.Registered).Add(time.Duration(d) * time.Millisecond)
@@ -377,10 +396,19 @@ func (r reg) subunregister(msg *PubsubMsg) {
 		logrus.Errorf("unmarshal error when sub to register: %s", err)
 		return
 	}
-
+	p := &Pong{Service: s}
+	for _, f := range r.opts.observeFilters {
+		if !f(p) {
+			return
+		}
+	}
+	if r.opts.observerEvent != nil {
+		r.opts.observerEvent(s, Unregister)
+	}
 	r.ser.DeleteByName(s.Name + s.Address)
 	logrus.Debugf("Unregister service %s/%s", s.Name, s.Address)
 }
+
 func (r reg) Observe(service string) error {
 	if _, ok := r.observers[service]; !ok {
 		r.observers[service] = &observe{}

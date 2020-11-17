@@ -58,8 +58,12 @@ func (s *services) IterateServiceName(f func(key string) bool) {
 	})
 }
 
-func (s *services) LoadOrStore(p *Pong) (res *Pong) {
-	if v, exist := s.m.LoadOrStore(p.Name+p.Address, p); exist {
+//LoadOrStore LoadOrStore returns the existing value for the key if present.
+//Otherwise, it stores and returns the given value.
+//The loaded result is true if the value was loaded, false if stored.
+func (s *services) LoadOrStore(p *Pong) (res *Pong, loaded bool) {
+	var v interface{}
+	if v, loaded = s.m.LoadOrStore(p.Name+p.Address, p); loaded {
 		old := v.(*Pong)
 		old.Timestamps = p.Timestamps
 		res = old
@@ -67,7 +71,7 @@ func (s *services) LoadOrStore(p *Pong) (res *Pong) {
 		s.rebuildCache(p.Name)
 		res = p
 	}
-	return res
+	return res, loaded
 }
 func (s *services) nbService(name string) (nb int) {
 	nb = len(s.cache[name])
