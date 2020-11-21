@@ -6,6 +6,7 @@ import (
 	"net"
 )
 
+//ErrNoFreePort when no free port is available
 var ErrNoFreePort = errors.New("No free port available")
 
 //FreePort request a new free port
