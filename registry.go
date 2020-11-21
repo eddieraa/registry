@@ -8,7 +8,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/nats-io/nats.go"
 	"github.com/sirupsen/logrus"
 	log "github.com/sirupsen/logrus"
 )
@@ -16,6 +15,7 @@ import (
 //Registry Register, Unregister
 type Registry interface {
 	Register(s Service) (FnUnregister, error)
+	Unregister(s Service) error
 	GetServices(name string) ([]Service, error)
 	GetService(name string, filters ...Filter) (*Service, error)
 	Observe(serviceName string) error
@@ -36,8 +36,21 @@ type Pong struct {
 	Timestamps *Timestamps `json:"t,omitempty"`
 }
 
+//Event represent event (register|unregister|unavailbale)
+type Event string
+
+const (
+	//Register register event
+	Register Event = "register"
+	//Unregister unregister event
+	Unregister Event = "unregister"
+)
+
 //FnUnregister call this func for unregister the service
 type FnUnregister func()
+
+//ObserverEvent event tigered
+type ObserverEvent func(s Service, ev Event)
 
 //Service service struct
 type Service struct {
@@ -67,12 +80,11 @@ type observe struct {
 }
 
 type reg struct {
-	m         map[string]map[string]*Pong
-	cache     map[string][]*Pong
+	ser       *services
 	observers map[string]*observe
 	opts      Options
 
-	//manage Registerd service
+	//manage Registered service
 	registeredServices map[string]*Pong
 
 	//used to stop go routine registerServiceInContinue
@@ -84,7 +96,7 @@ type reg struct {
 
 	//references to all subscriptions to nats
 	//these subscriptions unsubscripe when Close function will be call
-	subscriptions []*nats.Subscription
+	subscriptions []Subscription
 }
 
 var (
@@ -98,13 +110,13 @@ var (
 func (r reg) buildMessage(message, service string, args ...string) string {
 	var b strings.Builder
 	b.WriteString(r.opts.mainTopic)
-	b.WriteString("/")
+	b.WriteString(".")
 	b.WriteString(message)
-	b.WriteString("/")
+	b.WriteString(".")
 	b.WriteString(service)
 	if args != nil {
 		for _, s := range args {
-			b.WriteString("/")
+			b.WriteString(".")
 			b.WriteString(s)
 		}
 	}
@@ -125,27 +137,22 @@ func (p Pong) String() string {
 
 func (r reg) subToPing(p *Pong) {
 	log.Info("Sub to ping for service ", p.Name, " ", p.Address)
-	fn := func(m *nats.Msg) {
-		data, err := json.Marshal(p)
-		if err == nil {
-			log.Info("Respond to ping ", m.Reply, " ", p.Name, " ", p.Address)
-			m.Respond(data)
-		} else {
-			log.Errorf("Unable to marchal pong for service %s error is: %s", p.Name, err)
-		}
-
+	fn := func(m *PubsubMsg) {
+		r.pubregister(p)
 	}
-	s, err := r.opts.natsConn.Subscribe(r.buildMessage("ping", p.Name), fn)
+	s, err := r.opts.pubsub.Sub(r.buildMessage("ping", p.Name), fn)
 	if err != nil {
 		log.Error("subToPing: ", err)
 	} else {
-		log.Debugf("Subscribe for %s OK", s.Subject)
+		log.Debugf("Subscribe for %s OK", s.Subject())
 		r.subscriptions = append(r.subscriptions, s)
 	}
 }
 
 func (r reg) Register(s Service) (f FnUnregister, err error) {
-	f = func() {}
+	if s.Host == "" {
+		s.Host = r.opts.hostname
+	}
 	p := &Pong{Service: s, Timestamps: &Timestamps{Registered: time.Now().UnixNano(), Duration: int(r.opts.registerInterval.Milliseconds())}}
 	r.subToPing(p)
 
@@ -166,7 +173,7 @@ func (r reg) pubregister(p *Pong) (err error) {
 		log.Error("publish register failed unmarshal service ", p.Name, " :", err)
 		return
 	}
-	if err = r.opts.natsConn.Publish(r.buildMessage("register", p.Name), data); err != nil {
+	if err = r.opts.pubsub.Pub(r.buildMessage("register", p.Name), data); err != nil {
 		log.Error("publish register failed for service ", p.Name, " :", err)
 		return
 	}
@@ -200,24 +207,22 @@ stop:
 }
 
 func (r reg) checkDueTime() {
-	toDel := []string{}
+	toDel := []*Pong{}
 	now := time.Now()
-	for sname, v := range r.m {
-		for k, s := range v {
-			if now.After(s.dueTime) {
-				toDel = append(toDel, sname+" "+k)
-			}
+	r.ser.IterateAll(func(key string, s *Pong) bool {
+		if now.After(s.dueTime) {
+			toDel = append(toDel, s)
 		}
-	}
+		return true
+	})
+
 	toRefresh := make(map[string]bool)
 	for _, k := range toDel {
-		tks := strings.Split(k, " ")
-		logrus.Info("Delete entry ", k)
-		delete(r.m[tks[0]], tks[1])
-		toRefresh[tks[0]] = true
+		r.ser.Delete(k)
+		toRefresh[k.Name] = true
 	}
 	for k := range toRefresh {
-		rebuildCache(r.m, k, r.cache)
+		r.ser.rebuildCache(k)
 	}
 }
 
@@ -226,7 +231,7 @@ func (r reg) Unregister(s Service) (err error) {
 	if data, err = json.Marshal(s); err != nil {
 		return
 	}
-	err = r.opts.natsConn.Publish(r.buildMessage("unregister", s.Name), data)
+	err = r.opts.pubsub.Pub(r.buildMessage("unregister", s.Name), data)
 	if r.registeredServices != nil {
 		delete(r.registeredServices, s.Name+s.Address)
 	}
@@ -240,14 +245,13 @@ func Connect(opts ...Option) (r Registry, err error) {
 	if instance == nil {
 		intanceOnce.Do(func() {
 			instance = &reg{
-				m:                               make(map[string]map[string]*Pong),
+				ser:                             newServices(),
 				observers:                       make(map[string]*observe),
 				opts:                            newOptions(opts...),
 				registeredServices:              make(map[string]*Pong),
 				chFiredRegisteredService:        make(chan *Pong),
 				chStopChannelRegisteredServices: make(chan bool),
-				subscriptions:                   make([]*nats.Subscription, 0),
-				cache:                           make(map[string][]*Pong),
+				subscriptions:                   make([]Subscription, 0),
 			}
 			go instance.registerServiceInContinue()
 		})
@@ -295,7 +299,8 @@ func (r reg) getinternalService(name string, serviceFilters ...Filter) ([]Servic
 		filters = r.opts.filters
 	}
 	//service is already registered
-	if res, ok := r.cache[name]; ok {
+
+	if res := r.ser.GetServices(name); res != nil {
 		return chainFilters(res, filters...), nil
 	}
 	//service not yet registered
@@ -325,7 +330,7 @@ func (r reg) getinternalService(name string, serviceFilters ...Filter) ([]Servic
 		}
 	}
 	r.Observe(name)
-	err := r.opts.natsConn.PublishRequest(r.buildMessage("ping", name), r.buildMessage("register", name), nil)
+	err := r.opts.pubsub.Pub(r.buildMessage("ping", name), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -352,62 +357,68 @@ func (r reg) GetServices(name string) ([]Service, error) {
 	return r.getinternalService(name)
 }
 
-func (r reg) subregister(msg *nats.Msg) {
+func (r reg) subregister(msg *PubsubMsg) {
 	var p *Pong
 	err := json.Unmarshal(msg.Data, &p)
 	if err != nil {
 		logrus.Errorf("unmarshal error when sub to register: %s", err)
 		return
 	}
+	for _, f := range r.opts.observeFilters {
+		if !f(p) {
+			return
+		}
+	}
 	if o, ok := r.observers[p.Name]; ok {
 		if o.callback != nil {
 			o.callback(p)
 		}
+	} else {
+		r.observers[p.Name] = &observe{}
 	}
-	if _, ok := r.m[p.Name]; !ok {
-		r.m[p.Name] = make(map[string]*Pong)
+	var alreadyExist bool
+	if p, alreadyExist = r.ser.LoadOrStore(p); !alreadyExist && r.opts.observerEvent != nil {
+		r.opts.observerEvent(p.Service, Register)
 	}
-	services := r.m[p.Name]
 	if p.Timestamps != nil {
 		d := int(float32(p.Timestamps.Duration) * r.opts.dueDurationFactor)
 		p.dueTime = time.Unix(0, p.Timestamps.Registered).Add(time.Duration(d) * time.Millisecond)
 		log.Debug(p.dueTime.Local().Format(time.ANSIC))
 	}
 	log.Debugf("append %s ", p.Service)
-	if v, _ := services[p.Host+p.Address]; false {
-		v.Timestamps = p.Timestamps
-	} else {
-		services[p.Host+p.Address] = p
-	}
-	rebuildCache(r.m, p.Name, r.cache)
 
 }
 
-func (r reg) subunregister(msg *nats.Msg) {
+func (r reg) subunregister(msg *PubsubMsg) {
 	var s Service
 	err := json.Unmarshal(msg.Data, &s)
 	if err != nil {
 		logrus.Errorf("unmarshal error when sub to register: %s", err)
 		return
 	}
-
-	if _, ok := r.m[s.Name]; !ok {
-		return
+	p := &Pong{Service: s}
+	for _, f := range r.opts.observeFilters {
+		if !f(p) {
+			return
+		}
 	}
-	delete(r.m[s.Name], s.Host+s.Address)
-	rebuildCache(r.m, s.Name, r.cache)
+	if r.opts.observerEvent != nil {
+		r.opts.observerEvent(s, Unregister)
+	}
+	r.ser.DeleteByName(s.Name + s.Address)
 	logrus.Debugf("Unregister service %s/%s", s.Name, s.Address)
 }
+
 func (r reg) Observe(service string) error {
 	if _, ok := r.observers[service]; !ok {
 		r.observers[service] = &observe{}
 	}
-	s, err := r.opts.natsConn.Subscribe(r.buildMessage("register", service), r.subregister)
+	s, err := r.opts.pubsub.Sub(r.buildMessage("register", service), r.subregister)
 	if err != nil {
 		return err
 	}
 	r.subscriptions = append(r.subscriptions, s)
-	s, err = r.opts.natsConn.Subscribe(r.buildMessage("unregister", service), r.subunregister)
+	s, err = r.opts.pubsub.Sub(r.buildMessage("unregister", service), r.subunregister)
 	if err != nil {
 		return err
 	}
@@ -425,38 +436,11 @@ func (r reg) Close() (err error) {
 		r.Unregister(s.Service)
 	}
 	for _, s := range r.subscriptions {
-		s.Unsubscribe()
+		s.Unsub()
 	}
 	r.subscriptions = r.subscriptions[0:0]
 	instance = nil
 	intanceOnce = sync.Once{}
 	log.Debug("Close registry done")
 	return
-}
-
-func rebuildCache(ref map[string]map[string]*Pong, name string, cache map[string][]*Pong) {
-	if name == "" {
-		toDelete := make([]string, 0)
-		for k := range cache {
-			if _, exist := cache[k]; !exist {
-				toDelete = append(toDelete, k)
-			}
-		}
-		if len(toDelete) == 0 {
-			for _, k := range toDelete {
-				delete(cache, k)
-			}
-		}
-		for k := range ref {
-			rebuildCache(ref, k, cache)
-		}
-	} else {
-		services := make([]*Pong, len(ref[name]))
-		i := 0
-		for _, v := range ref[name] {
-			services[i] = v
-			i++
-		}
-		cache[name] = services
-	}
 }

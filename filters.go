@@ -1,10 +1,20 @@
 package registry
 
-import "os"
+import (
+	"os"
+
+	"github.com/sirupsen/logrus"
+)
 
 //Filter used for filtering service
 //do not return nil
+//Ex Load Balancing
 type Filter func(services []*Pong) []*Pong
+
+//ObserveFilter used to accept (or not) new registered service.
+//
+//Ex: you want only service on same host
+type ObserveFilter func(s *Pong) bool
 
 //LocalhostFilter return true if hostname is equals to service host
 func LocalhostFilter() Filter {
@@ -40,4 +50,18 @@ func LoadBalanceFilter() Filter {
 		return []*Pong{services[lastInd]}
 	}
 	return fn
+}
+
+//LocalhostOFilter accept only service on the same machine
+func LocalhostOFilter() ObserveFilter {
+	name, err := os.Hostname()
+	if err != nil {
+		logrus.Error("Unable to get local hostname: ", err.Error())
+	}
+	return func(p *Pong) bool {
+		if name == p.Host {
+			return true
+		}
+		return false
+	}
 }

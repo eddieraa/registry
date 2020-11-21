@@ -1,9 +1,10 @@
 package registry
 
 import (
+	"os"
 	"time"
 
-	"github.com/nats-io/nats.go"
+	"github.com/sirupsen/logrus"
 )
 
 //Option option func
@@ -14,10 +15,13 @@ type Options struct {
 	timeout           time.Duration
 	registerInterval  time.Duration
 	checkDueTime      time.Duration
-	natsConn          *nats.Conn
+	pubsub            Pubsub
 	mainTopic         string
 	filters           []Filter
+	observeFilters    []ObserveFilter
 	dueDurationFactor float32
+	observerEvent     ObserverEvent
+	hostname          string
 }
 
 var (
@@ -41,12 +45,18 @@ func SetFlags() {
 }
 
 func newOptions(opts ...Option) Options {
+	var err error
 	options := Options{
 		timeout:           DefaultTimeout,
 		registerInterval:  DefaultRegisterInterval,
 		checkDueTime:      DefaultCheckDueInterval,
 		mainTopic:         DefaultMainTopic,
 		dueDurationFactor: DefaultDueDurationFactor,
+		filters:           make([]Filter, 0),
+		observeFilters:    make([]ObserveFilter, 0),
+	}
+	if options.hostname, err = os.Hostname(); err != nil {
+		logrus.Error("could not get hostname ", err)
 	}
 	for _, o := range opts {
 		o(&options)
@@ -54,10 +64,10 @@ func newOptions(opts ...Option) Options {
 	return options
 }
 
-//Nats initialyse service registry with nats connection
-func Nats(conn *nats.Conn) Option {
+//WithPubsub initialyse service registry with nats connection
+func WithPubsub(pb Pubsub) Option {
 	return func(opts *Options) {
-		opts.natsConn = conn
+		opts.pubsub = pb
 	}
 }
 
@@ -85,9 +95,20 @@ func MainTopic(topic string) Option {
 //AddFilter add filter
 func AddFilter(f Filter) Option {
 	return func(opts *Options) {
-		if opts.filters == nil {
-			opts.filters = []Filter{}
-		}
 		opts.filters = append(opts.filters, f)
+	}
+}
+
+//AddObserveFilter adding filter
+func AddObserveFilter(f ObserveFilter) Option {
+	return func(opts *Options) {
+		opts.observeFilters = append(opts.observeFilters, f)
+	}
+}
+
+//SetObserverEvent set handler for Observer Event
+func SetObserverEvent(ev ObserverEvent) Option {
+	return func(opts *Options) {
+		opts.observerEvent = ev
 	}
 }
