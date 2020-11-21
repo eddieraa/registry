@@ -7,6 +7,7 @@ import (
 	"net/http"
 
 	"github.com/eddieraa/registry"
+	pb "github.com/eddieraa/registry/nats"
 	"github.com/nats-io/nats.go"
 	"github.com/sirupsen/logrus"
 )
@@ -26,7 +27,7 @@ func main() {
 	if err != nil {
 		logrus.Fatal("could not connect to nats ", err)
 	}
-	reg, err := registry.Connect(registry.Nats(conn), registry.AddFilter(registry.LoadBalanceFilter()))
+	reg, err := registry.Connect(pb.Nats(conn), registry.AddFilter(registry.LoadBalanceFilter()))
 	if err != nil {
 		logrus.Fatal("could not connect to nats ", err)
 	}
