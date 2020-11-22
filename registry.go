@@ -24,7 +24,7 @@ type Registry interface {
 
 //Timestamps define registered datetime and expiration duration
 type Timestamps struct {
-	//date registered in nanoseconds (unix timestamp)
+	//Registered date registered in nanoseconds (unix timestamp in milliseconds)
 	Registered int64
 	//expiration duration in milliseconds
 	Duration int
@@ -168,16 +168,17 @@ func (r reg) Register(s Service) (f FnUnregister, err error) {
 
 func (r reg) pubregister(p *Pong) (err error) {
 	var data []byte
-	p.Timestamps.Registered = time.Now().UnixNano()
+	p.Timestamps.Registered = time.Now().UnixNano() / 1000000
 	if data, err = json.Marshal(p); err != nil {
 		log.Error("publish register failed unmarshal service ", p.Name, " :", err)
 		return
 	}
-	if err = r.opts.pubsub.Pub(r.buildMessage("register", p.Name), data); err != nil {
+	topic := r.buildMessage("register", p.Name)
+	if err = r.opts.pubsub.Pub(topic, data); err != nil {
 		log.Error("publish register failed for service ", p.Name, " :", err)
 		return
 	}
-	log.Info("Send register for service ", p.Host, " ", p)
+	log.Infof("%s (%s) host: %s", topic, p.Address, p.Host)
 	return
 }
 
@@ -231,11 +232,12 @@ func (r reg) Unregister(s Service) (err error) {
 	if data, err = json.Marshal(s); err != nil {
 		return
 	}
-	err = r.opts.pubsub.Pub(r.buildMessage("unregister", s.Name), data)
+	topic := r.buildMessage("unregister", s.Name)
+	err = r.opts.pubsub.Pub(topic, data)
 	if r.registeredServices != nil {
 		delete(r.registeredServices, s.Name+s.Address)
 	}
-	log.Info("service ", s.Host, " ", s.Name, " Unregistered")
+	log.Infof("%s (%s) host: %s", topic, s.Address, s.Host)
 	return
 
 }
@@ -382,7 +384,8 @@ func (r reg) subregister(msg *PubsubMsg) {
 	}
 	if p.Timestamps != nil {
 		d := int(float32(p.Timestamps.Duration) * r.opts.dueDurationFactor)
-		p.dueTime = time.Unix(0, p.Timestamps.Registered).Add(time.Duration(d) * time.Millisecond)
+		registered := p.Timestamps.Registered * int64(time.Millisecond)
+		p.dueTime = time.Unix(0, registered).Add(time.Duration(d) * time.Millisecond)
 		log.Debug(p.dueTime.Local().Format(time.ANSIC))
 	}
 	log.Debugf("append %s ", p.Service)

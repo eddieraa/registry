@@ -5,7 +5,6 @@ import (
 	"context"
 	"flag"
 	"fmt"
-	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -19,21 +18,6 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-func localfreeaddr() string {
-	addr, err := net.ResolveTCPAddr("tcp", "localhost:0")
-	if err != nil {
-		panic(fmt.Sprint("Could not open new port: ", err))
-	}
-	l, err := net.ListenTCP("tcp", addr)
-	if err != nil {
-		panic(fmt.Sprint("Error listen addr ", addr, " err: ", err))
-	}
-	port := l.Addr().(*net.TCPAddr).Port
-
-	defer l.Close()
-	return fmt.Sprint("127.0.0.1:", port)
-}
-
 func main() {
 
 	var serviceName string
@@ -46,8 +30,11 @@ func main() {
 	flag.Parse()
 	logrus.SetLevel(logrus.DebugLevel)
 
-	addr := localfreeaddr()
-	println("Start http server on address ", addr)
+	addr, err := registry.FindFreeLocalAddress(10000, 10020)
+	if err != nil {
+		panic(fmt.Sprint("Could not get free port ", err))
+	}
+	println("Start http server on address (", addr, ")")
 	conn, err := nats.Connect(natsURL)
 	if err != nil {
 		panic(fmt.Sprint("Could not connect to nats (", natsURL, "): ", err))
