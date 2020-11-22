@@ -16,4 +16,5 @@ type Subscription interface {
 type Pubsub interface {
 	Sub(topic string, f func(m *PubsubMsg)) (Subscription, error)
 	Pub(topic string, data []byte) error
+	Stop()
 }

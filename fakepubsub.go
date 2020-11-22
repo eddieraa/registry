@@ -13,3 +13,6 @@ func (p *fake) Pub(topic string, data []byte) error {
 func (p *fake) Sub(topic string, f func(m *PubsubMsg)) (Subscription, error) {
 	return nil, nil
 }
+func (p *fake) Stop() {
+
+}

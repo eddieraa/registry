@@ -33,6 +33,10 @@ func (pb *pubsub) Pub(topic string, data []byte) error {
 	return pb.c.Publish(topic, data)
 }
 
+func (pb *pubsub) Stop() {
+
+}
+
 func (s *subscription) Unsub() error {
 	return s.s.Unsubscribe()
 }
