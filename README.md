@@ -7,6 +7,8 @@ You just need to start nats before using this service registry
 
 The project is still under development and is not ready for production. 
 
+A java [implentation](https://github.com/eddieraa/registry) exist
+
 ## Simple to use: 
 API is simple to use, simple to understand. No required external installation.
 No configuration file is required.
