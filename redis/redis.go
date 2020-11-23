@@ -23,8 +23,8 @@ type subscription struct {
 	sub     func(m *registry.PubsubMsg)
 }
 
-//NewRedis return Options with redis connection
-func NewRedis(addr string) registry.Option {
+//NewRedisClient return Options with redis connection
+func NewRedisClient(addr string) registry.Option {
 	rdb := redis.NewClient(&redis.Options{
 		Addr: addr,
 	})
@@ -32,6 +32,11 @@ func NewRedis(addr string) registry.Option {
 	pb := NewPub(rdb)
 	pb.(*pubsub).connManaged = true
 	return registry.WithPubsub(pb)
+}
+
+//WithRedis return Option with redis client
+func WithRedis(rdb *redis.Client) registry.Option {
+	return registry.WithPubsub(NewPub(rdb))
 }
 
 //NewPub return Redis Pubsub
