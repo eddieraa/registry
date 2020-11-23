@@ -444,6 +444,7 @@ func (r reg) Close() (err error) {
 	r.subscriptions = r.subscriptions[0:0]
 	instance = nil
 	intanceOnce = sync.Once{}
+	r.opts.pubsub.Stop()
 	log.Debug("Close registry done")
 	return
 }
