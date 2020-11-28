@@ -33,6 +33,14 @@ func Test1(t *testing.T) {
 }
 
 func TestFake(t *testing.T) {
+	nb := 0
+	sub := func(pb registry.Pubsub) func(m *registry.PubsubMsg) {
+		return func(m *registry.PubsubMsg) {
+			nb++
+			logrus.Info(pb.(*cli).String()+" rcv "+m.Subject+" data: ", string(m.Data))
+
+		}
+	}
 	pb := NewPubSub()
 	pb.Sub("toto", sub(pb))
 	pb.Sub("titi", sub(pb))
@@ -43,11 +51,22 @@ func TestFake(t *testing.T) {
 	pb2.Pub("toto", []byte("Hello toto2"))
 	pb2.Pub("toto.tutu", []byte("Hello toto"))
 	pb2.Pub("titi", []byte("Hello titi"))
-
+	assert.Equal(t, 6, nb)
 }
 
-func sub(pb registry.Pubsub) func(m *registry.PubsubMsg) {
-	return func(m *registry.PubsubMsg) {
-		logrus.Info(pb.(*cli).String()+" rcv "+m.Subject+" data: ", string(m.Data))
-	}
+func launchFakeService(t *testing.T) {
+	pb := NewPubSub()
+	reg, err := registry.NewRegistry(registry.WithPubsub(pb))
+	assert.Nil(t, err)
+	reg.Register(registry.Service{Name: "test", Address: "localhost:8080"})
+	reg.Close()
+}
+
+func TestRegistry(t *testing.T) {
+	pb := NewPubSub()
+	registry.SetDefaultInstance(registry.WithPubsub(pb))
+	go launchFakeService(t)
+	s, err := registry.GetService("test")
+	assert.Nil(t, err)
+	assert.Equal(t, "localhost:8080", s.Address)
 }
