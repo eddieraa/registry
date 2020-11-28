@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/eddieraa/registry"
+	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -29,4 +30,24 @@ func Test1(t *testing.T) {
 
 	s.add("test", &cli{3, nil}, newFps("cx"))
 	assert.Equal(t, 3, len(s.get("test")))
+}
+
+func TestFake(t *testing.T) {
+	pb := NewPubSub()
+	pb.Sub("toto", sub(pb))
+	pb.Sub("titi", sub(pb))
+	pb3 := NewPubSub()
+	pb3.Sub("toto*", sub(pb3))
+	pb2 := NewPubSub()
+	pb2.Pub("toto", []byte("Hello toto"))
+	pb2.Pub("toto", []byte("Hello toto2"))
+	pb2.Pub("toto.tutu", []byte("Hello toto"))
+	pb2.Pub("titi", []byte("Hello titi"))
+
+}
+
+func sub(pb registry.Pubsub) func(m *registry.PubsubMsg) {
+	return func(m *registry.PubsubMsg) {
+		logrus.Info(pb.(*cli).String()+" rcv "+m.Subject+" data: ", string(m.Data))
+	}
 }

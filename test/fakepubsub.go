@@ -12,6 +12,7 @@ type fakeServer struct {
 	fmlike   *fakemap
 	cachesub map[string][]func(*registry.PubsubMsg)
 	mu       sync.Mutex
+	fakecli  registry.Pubsub
 }
 
 var server fakeServer
@@ -19,6 +20,7 @@ var server fakeServer
 func init() {
 	server.fm = newFakemap()
 	server.fmlike = newFakemap()
+	server.fakecli = newCli(&server)
 }
 
 func (s *fakeServer) getCachesub() map[string][]func(*registry.PubsubMsg) {
@@ -31,16 +33,42 @@ func (s *fakeServer) getCachesub() map[string][]func(*registry.PubsubMsg) {
 
 }
 
-func (s *fakeServer) rebuildCache(c *cli, topic string, f func(m *registry.PubsubMsg)) {
+func (s *fakeServer) rebuildAllCache() {
 	newCache := make(map[string][]func(*registry.PubsubMsg))
 	s.fm.Range(func(topic string, msgs []func(*registry.PubsubMsg)) {
 		newCache[topic] = msgs
 	})
 
 	s.fmlike.Range(func(topic string, msgs []func(*registry.PubsubMsg)) {
-		//todo
+		prefix := topic[0 : len(topic)-1]
+		topics := s.fm.FindTopicsWithPrefix(prefix)
+		for _, t := range topics {
+			var cachemsgs []func(*registry.PubsubMsg)
+			var ok bool
+			if cachemsgs, ok = newCache[t]; !ok {
+				cachemsgs = msgs
+			} else {
+				cachemsgs = append(cachemsgs, msgs...)
+			}
+			newCache[t] = cachemsgs
+		}
 	})
+	s.mu.Lock()
+	s.cachesub = newCache
+	s.mu.Unlock()
 
+}
+
+func (s *fakeServer) Unsub(c *cli, topic string) {
+	var fm *fakemap
+	if strings.HasSuffix(topic, "*") {
+		fm = s.fmlike
+	} else {
+		fm = s.fm
+	}
+	if fm.Remove(topic, c) {
+		s.rebuildAllCache()
+	}
 }
 
 func (s *fakeServer) Sub(c *cli, topic string, f func(m *registry.PubsubMsg)) (res registry.Subscription) {
@@ -49,17 +77,33 @@ func (s *fakeServer) Sub(c *cli, topic string, f func(m *registry.PubsubMsg)) (r
 	} else {
 		server.fm.add(topic, c, f)
 	}
+	s.rebuildAllCache()
+
+	res = &subscription{subject: topic, unsub: func() { s.Unsub(c, topic) }}
 	return
 }
 
 func (s *fakeServer) SendMessage(mes *registry.PubsubMsg) {
 	m := s.getCachesub()
+
 	if subs, ok := m[mes.Subject]; ok {
 		for _, v := range subs {
 			v(mes)
 		}
+	} else {
+		//subject is unknown
+		s.fakecli.Sub(mes.Subject, fakesub)
+		m = s.getCachesub()
+		if subs, ok = m[mes.Subject]; ok {
+			for _, v := range subs {
+				v(mes)
+			}
+		}
 	}
 
+}
+
+func fakesub(m *registry.PubsubMsg) {
 }
 
 //NewPubSub return new Pubsub instance

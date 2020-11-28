@@ -1,6 +1,7 @@
 package test
 
 import (
+	"strings"
 	"sync"
 
 	"github.com/eddieraa/registry"
@@ -37,6 +38,30 @@ func (s *fakemap) sizeTopic(topic string) int {
 		return 0
 	}
 	return len(topics)
+}
+
+func (s *fakemap) Remove(topic string, c *cli) (res bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if m, ok := s.m[topic]; ok {
+		if _, found := m[*c]; found {
+			res = found
+			delete(m, *c)
+		}
+	}
+	return
+}
+
+func (s *fakemap) FindTopicsWithPrefix(prefix string) []string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	res := []string{}
+	for topic := range s.m {
+		if strings.HasPrefix(topic, prefix) {
+			res = append(res, topic)
+		}
+	}
+	return res
 }
 
 func (s *fakemap) Range(f func(topic string, msgs []func(*registry.PubsubMsg))) {

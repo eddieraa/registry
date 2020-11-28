@@ -1,6 +1,10 @@
 package test
 
-import "github.com/eddieraa/registry"
+import (
+	"fmt"
+
+	"github.com/eddieraa/registry"
+)
 
 var count int
 
@@ -21,12 +25,8 @@ func (c *cli) Pub(topic string, data []byte) error {
 }
 
 func (c *cli) Sub(topic string, f func(m *registry.PubsubMsg)) (res registry.Subscription, err error) {
-	res = c.server.Sub(c, topic, f)
-	/* 	server.add(topic, c, f)
-	   	res := &subscription{subject: topic, unsub: func() {
-	   		if s, ok := server.subsc.Load(topic); ok {
-	   			delete(s.(map[cli]bool), *c)
-	   		}
-	   	}} */
-	return res, nil
+	return c.server.Sub(c, topic, f), nil
+}
+func (c *cli) String() string {
+	return fmt.Sprintf("%d", c.i)
 }
