@@ -106,8 +106,8 @@ var (
 	//ErrNoDefaultInstance when intance singleton has not been set
 	ErrNoDefaultInstance = errors.New("Default instance has not been set, call SetDefaultInstance before")
 	//singleton instance
-	instance    *reg
-	intanceOnce sync.Once
+	instance *reg
+	mu       sync.Mutex
 )
 
 func (r reg) buildMessage(message, service string, args ...string) string {
@@ -264,16 +264,13 @@ func NewRegistry(opts ...Option) (r Registry, err error) {
 //
 // ex pubsub transport
 func SetDefaultInstance(opts ...Option) (r Registry, err error) {
+	mu.Lock()
+	defer mu.Unlock()
 	if instance == nil {
-		intanceOnce.Do(func() {
-			r, err = NewRegistry(opts...)
-			if err != nil {
-				//create new instanceOnce
-				intanceOnce = sync.Once{}
-			} else {
-				instance = r.(*reg)
-			}
-		})
+		r, err = NewRegistry(opts...)
+		if err == nil {
+			instance = r.(*reg)
+		}
 	}
 
 	return
@@ -520,7 +517,6 @@ func (r reg) Close() (err error) {
 	}
 	r.subscriptions = r.subscriptions[0:0]
 	instance = nil
-	intanceOnce = sync.Once{}
 	log.Debug("Close registry done")
 	return
 }
