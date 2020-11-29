@@ -14,8 +14,17 @@ import (
 //create in memory pubsub
 var pb = test.NewPubSub()
 
+//var pb pubsub.Pubsub
+
 func init() {
 	logrus.SetFormatter(&logrus.TextFormatter{DisableColors: true})
+	/*
+		conn, err := nats.Connect(nats.DefaultURL)
+		if err != nil {
+			logrus.Fatal(err)
+		}
+		pb = pbnats.NewPub(conn)
+	*/
 }
 
 func newService(addr, host, name string) *Pong {
@@ -135,6 +144,7 @@ func TestUnregister(t *testing.T) {
 	s, err := r.GetService("testunsub")
 	assert.Nil(t, s)
 	assert.Equal(t, err, ErrNotFound)
+	r.Close()
 }
 
 func TestClose(t *testing.T) {
@@ -200,6 +210,7 @@ func TestParalleleSetDefaulInstance(t *testing.T) {
 	for i := 0; i < 1000; i++ {
 		go f()
 	}
+	Close()
 }
 
 func TestCheckDueTime(t *testing.T) {
@@ -220,6 +231,7 @@ func TestCheckDueTime(t *testing.T) {
 	<-time.NewTimer(50 * time.Millisecond).C
 
 	close(chstop)
+	Close()
 
 }
 
@@ -259,5 +271,22 @@ func TestErrRegister(t *testing.T) {
 	reg, _ := NewRegistry(WithPubsub(pb))
 	_, err := reg.Register(Service{Name: "mys", Address: "x:33"})
 	assert.Equal(t, test.ErrPubsubPaused, err)
+	reg.Close()
 
+}
+
+func TestSubToPing(t *testing.T) {
+	service := "subtoping"
+	test.GetServer().Resume()
+	SetDefaultInstance(WithPubsub(pb))
+	_, err := Register(Service{Name: service, Address: "x:123"})
+	assert.Nil(t, err)
+
+	reg, _ := NewRegistry(WithPubsub(pb))
+
+	s, _ := reg.GetService(service)
+	assert.NotNil(t, s)
+
+	reg.Close()
+	Close()
 }

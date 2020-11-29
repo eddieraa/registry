@@ -116,7 +116,7 @@ func (s *fakeServer) SendMessage(mes *pubsub.PubsubMsg) error {
 
 	if subs, ok := m[mes.Subject]; ok {
 		for _, v := range subs {
-			v(mes)
+			go v(mes)
 		}
 	} else {
 		//subject is unknown
@@ -124,7 +124,7 @@ func (s *fakeServer) SendMessage(mes *pubsub.PubsubMsg) error {
 		m = s.getCachesub()
 		if subs, ok = m[mes.Subject]; ok {
 			for _, v := range subs {
-				v(mes)
+				go v(mes)
 			}
 		}
 	}
