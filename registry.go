@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/eddieraa/registry/pubsub"
 	"github.com/sirupsen/logrus"
 	log "github.com/sirupsen/logrus"
 )
@@ -96,7 +97,7 @@ type reg struct {
 
 	//references to all subscriptions to nats
 	//these subscriptions unsubscripe when Close function will be call
-	subscriptions []Subscription
+	subscriptions []pubsub.Subscription
 }
 
 var (
@@ -139,7 +140,7 @@ func (p Pong) String() string {
 
 func (r reg) subToPing(p *Pong) {
 	log.Info("Sub to ping for service ", p.Name, " ", p.Address)
-	fn := func(m *PubsubMsg) {
+	fn := func(m *pubsub.PubsubMsg) {
 		r.pubregister(p)
 	}
 	s, err := r.opts.pubsub.Sub(r.buildMessage("ping", p.Name), fn)
@@ -253,7 +254,7 @@ func NewRegistry(opts ...Option) (r Registry, err error) {
 		registeredServices:              make(map[string]*Pong),
 		chFiredRegisteredService:        make(chan *Pong),
 		chStopChannelRegisteredServices: make(chan bool),
-		subscriptions:                   make([]Subscription, 0),
+		subscriptions:                   make([]pubsub.Subscription, 0),
 	}
 	go r.(*reg).registerServiceInContinue()
 	return r, err
@@ -435,7 +436,7 @@ func (r reg) GetServices(name string) ([]Service, error) {
 	return r.getinternalService(name)
 }
 
-func (r reg) subregister(msg *PubsubMsg) {
+func (r reg) subregister(msg *pubsub.PubsubMsg) {
 	var p *Pong
 	err := json.Unmarshal(msg.Data, &p)
 	if err != nil {
@@ -468,7 +469,7 @@ func (r reg) subregister(msg *PubsubMsg) {
 
 }
 
-func (r reg) subunregister(msg *PubsubMsg) {
+func (r reg) subunregister(msg *pubsub.PubsubMsg) {
 	var s Service
 	err := json.Unmarshal(msg.Data, &s)
 	if err != nil {

@@ -4,28 +4,28 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/eddieraa/registry"
+	"github.com/eddieraa/registry/pubsub"
 )
 
 type fakemap struct {
 	mu sync.Mutex
-	m  map[string]map[cli]func(*registry.PubsubMsg)
+	m  map[string]map[cli]func(*pubsub.PubsubMsg)
 }
 
 func newFakemap() *fakemap {
-	return &fakemap{m: make(map[string]map[cli]func(*registry.PubsubMsg))}
+	return &fakemap{m: make(map[string]map[cli]func(*pubsub.PubsubMsg))}
 }
-func (s *fakemap) add(topic string, c *cli, f func(m *registry.PubsubMsg)) {
+func (s *fakemap) add(topic string, c *cli, f func(m *pubsub.PubsubMsg)) {
 	s.mu.Lock()
-	var climap map[cli]func(*registry.PubsubMsg)
+	var climap map[cli]func(*pubsub.PubsubMsg)
 	if climap = s.m[topic]; climap == nil {
-		climap = make(map[cli]func(*registry.PubsubMsg))
+		climap = make(map[cli]func(*pubsub.PubsubMsg))
 		s.m[topic] = climap
 	}
 	climap[*c] = f
 	s.mu.Unlock()
 }
-func (s *fakemap) get(topic string) map[cli]func(*registry.PubsubMsg) {
+func (s *fakemap) get(topic string) map[cli]func(*pubsub.PubsubMsg) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.m[topic]
@@ -64,11 +64,11 @@ func (s *fakemap) FindTopicsWithPrefix(prefix string) []string {
 	return res
 }
 
-func (s *fakemap) Range(f func(topic string, msgs []func(*registry.PubsubMsg))) {
+func (s *fakemap) Range(f func(topic string, msgs []func(*pubsub.PubsubMsg))) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	for mess, cliMap := range s.m {
-		msgs := make([]func(*registry.PubsubMsg), 0)
+		msgs := make([]func(*pubsub.PubsubMsg), 0)
 		for _, pb := range cliMap {
 			msgs = append(msgs, pb)
 		}

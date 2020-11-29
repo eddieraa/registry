@@ -4,6 +4,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/eddieraa/registry/pubsub"
 	"github.com/sirupsen/logrus"
 )
 
@@ -15,7 +16,7 @@ type Options struct {
 	timeout           time.Duration
 	registerInterval  time.Duration
 	checkDueTime      time.Duration
-	pubsub            Pubsub
+	pubsub            pubsub.Pubsub
 	mainTopic         string
 	filters           []Filter
 	observeFilters    []ObserveFilter
@@ -65,7 +66,7 @@ func newOptions(opts ...Option) Options {
 }
 
 //WithPubsub initialyse service registry with nats connection
-func WithPubsub(pb Pubsub) Option {
+func WithPubsub(pb pubsub.Pubsub) Option {
 	return func(opts *Options) {
 		opts.pubsub = pb
 	}

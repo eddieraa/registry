@@ -4,12 +4,13 @@ import (
 	"testing"
 
 	"github.com/eddieraa/registry"
+	"github.com/eddieraa/registry/pubsub"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 )
 
-func newFps(name string) func(*registry.PubsubMsg) {
-	return func(m *registry.PubsubMsg) {
+func newFps(name string) func(*pubsub.PubsubMsg) {
+	return func(m *pubsub.PubsubMsg) {
 		println("recv " + name)
 	}
 }
@@ -34,8 +35,8 @@ func Test1(t *testing.T) {
 
 func TestFake(t *testing.T) {
 	nb := 0
-	sub := func(pb registry.Pubsub) func(m *registry.PubsubMsg) {
-		return func(m *registry.PubsubMsg) {
+	sub := func(pb pubsub.Pubsub) func(m *pubsub.PubsubMsg) {
+		return func(m *pubsub.PubsubMsg) {
 			nb++
 			logrus.Info(pb.(*cli).String()+" rcv "+m.Subject+" data: ", string(m.Data))
 

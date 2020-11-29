@@ -2,11 +2,12 @@ package nats
 
 import (
 	"github.com/eddieraa/registry"
+	"github.com/eddieraa/registry/pubsub"
 	"github.com/nats-io/nats.go"
 	"github.com/sirupsen/logrus"
 )
 
-type pubsub struct {
+type pb struct {
 	c *nats.Conn
 }
 type subscription struct {
@@ -14,21 +15,21 @@ type subscription struct {
 }
 
 //NewPub return NATS Pubsub
-func NewPub(c *nats.Conn) registry.Pubsub {
-	pubsub := &pubsub{
+func NewPub(c *nats.Conn) pubsub.Pubsub {
+	pb := &pb{
 		c: c,
 	}
-	return pubsub
+	return pb
 }
-func (pb *pubsub) Sub(topic string, f func(m *registry.PubsubMsg)) (registry.Subscription, error) {
+func (pb *pb) Sub(topic string, f func(m *pubsub.PubsubMsg)) (pubsub.Subscription, error) {
 	logrus.Debug("subscribe to: ", topic)
 	subscript, err := pb.c.Subscribe(topic, func(m *nats.Msg) {
-		f(&registry.PubsubMsg{Subject: m.Subject, Data: m.Data})
+		f(&pubsub.PubsubMsg{Subject: m.Subject, Data: m.Data})
 	})
 	s := &subscription{s: subscript}
 	return s, err
 }
-func (pb *pubsub) Pub(topic string, data []byte) error {
+func (pb *pb) Pub(topic string, data []byte) error {
 	logrus.Debug("publish: ", topic)
 	return pb.c.Publish(topic, data)
 }

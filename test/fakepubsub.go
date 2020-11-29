@@ -4,15 +4,15 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/eddieraa/registry"
+	"github.com/eddieraa/registry/pubsub"
 )
 
 type fakeServer struct {
 	fm       *fakemap
 	fmlike   *fakemap
-	cachesub map[string][]func(*registry.PubsubMsg)
+	cachesub map[string][]func(*pubsub.PubsubMsg)
 	mu       sync.Mutex
-	fakecli  registry.Pubsub
+	fakecli  pubsub.Pubsub
 }
 
 var server fakeServer
@@ -23,27 +23,27 @@ func init() {
 	server.fakecli = newCli(&server)
 }
 
-func (s *fakeServer) getCachesub() map[string][]func(*registry.PubsubMsg) {
+func (s *fakeServer) getCachesub() map[string][]func(*pubsub.PubsubMsg) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.cachesub == nil {
-		s.cachesub = make(map[string][]func(*registry.PubsubMsg))
+		s.cachesub = make(map[string][]func(*pubsub.PubsubMsg))
 	}
 	return s.cachesub
 
 }
 
 func (s *fakeServer) rebuildAllCache() {
-	newCache := make(map[string][]func(*registry.PubsubMsg))
-	s.fm.Range(func(topic string, msgs []func(*registry.PubsubMsg)) {
+	newCache := make(map[string][]func(*pubsub.PubsubMsg))
+	s.fm.Range(func(topic string, msgs []func(*pubsub.PubsubMsg)) {
 		newCache[topic] = msgs
 	})
 
-	s.fmlike.Range(func(topic string, msgs []func(*registry.PubsubMsg)) {
+	s.fmlike.Range(func(topic string, msgs []func(*pubsub.PubsubMsg)) {
 		prefix := topic[0 : len(topic)-1]
 		topics := s.fm.FindTopicsWithPrefix(prefix)
 		for _, t := range topics {
-			var cachemsgs []func(*registry.PubsubMsg)
+			var cachemsgs []func(*pubsub.PubsubMsg)
 			var ok bool
 			if cachemsgs, ok = newCache[t]; !ok {
 				cachemsgs = msgs
@@ -71,7 +71,7 @@ func (s *fakeServer) Unsub(c *cli, topic string) {
 	}
 }
 
-func (s *fakeServer) Sub(c *cli, topic string, f func(m *registry.PubsubMsg)) (res registry.Subscription) {
+func (s *fakeServer) Sub(c *cli, topic string, f func(m *pubsub.PubsubMsg)) (res pubsub.Subscription) {
 	if strings.HasSuffix(topic, "*") {
 		server.fmlike.add(topic, c, f)
 	} else {
@@ -83,7 +83,7 @@ func (s *fakeServer) Sub(c *cli, topic string, f func(m *registry.PubsubMsg)) (r
 	return
 }
 
-func (s *fakeServer) SendMessage(mes *registry.PubsubMsg) {
+func (s *fakeServer) SendMessage(mes *pubsub.PubsubMsg) {
 	m := s.getCachesub()
 
 	if subs, ok := m[mes.Subject]; ok {
@@ -103,11 +103,11 @@ func (s *fakeServer) SendMessage(mes *registry.PubsubMsg) {
 
 }
 
-func fakesub(m *registry.PubsubMsg) {
+func fakesub(m *pubsub.PubsubMsg) {
 }
 
 //NewPubSub return new Pubsub instance
-func NewPubSub() registry.Pubsub {
+func NewPubSub() pubsub.Pubsub {
 	return newCli(&server)
 }
 
