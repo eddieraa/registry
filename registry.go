@@ -110,19 +110,13 @@ var (
 	mu       sync.Mutex
 )
 
-func (r reg) buildMessage(message, service string, args ...string) string {
+func (r reg) buildMessage(message, service string) string {
 	var b strings.Builder
 	b.WriteString(r.opts.mainTopic)
 	b.WriteString(".")
 	b.WriteString(message)
 	b.WriteString(".")
 	b.WriteString(service)
-	if args != nil {
-		for _, s := range args {
-			b.WriteString(".")
-			b.WriteString(s)
-		}
-	}
 	return b.String()
 }
 
