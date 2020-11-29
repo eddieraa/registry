@@ -74,9 +74,9 @@ func TestRegWithDefaultInstance(t *testing.T) {
 	assert.NotNil(t, s)
 	services, _ := GetServices("test")
 	assert.Equal(t, 1, len(services))
-
+	close(chstop)
 	Close()
-	chstop <- true
+
 }
 
 func TestWithLB(t *testing.T) {
@@ -115,7 +115,7 @@ func TestWithLB(t *testing.T) {
 	s, _ = r.GetService("myservice", lbFilter)
 	assert.False(t, strings.Contains(addresses, s.Address))
 	addresses += s.Address
-	chstop <- true
+	close(chstop)
 	r.Close()
 
 }
@@ -175,4 +175,44 @@ func TestObserveEventWithDefault(t *testing.T) {
 	ev = <-chobs
 	assert.Equal(t, EventUnregister, ev)
 	Close()
+}
+
+func launchSubscriber2(chstop chan interface{}, name string, addr string) {
+	reg, _ := NewRegistry(WithPubsub(pb), RegisterInterval(20*time.Millisecond))
+	s := Service{Name: name, Address: fmt.Sprint("localhost:", addr)}
+	reg.Register(s)
+	<-chstop
+	reg.Unregister(s)
+	reg.Close()
+}
+
+func _TestParalleleSetDefaulInstance(t *testing.T) {
+	f := func() {
+		SetDefaultInstance(WithPubsub(pb))
+		//Close()
+	}
+	for i := 0; i < 1000; i++ {
+		go f()
+	}
+}
+
+func TestCheckDueTime(t *testing.T) {
+	SetDefaultInstance(WithPubsub(pb))
+	chstop := make(chan interface{})
+	go launchSubscriber2(chstop, "checkdutime", "2344")
+	go launchSubscriber2(chstop, "checkdutime", "2345")
+	go launchSubscriber2(chstop, "checkdutime", "2346")
+	go launchSubscriber2(chstop, "checkdutime", "2347")
+	go launchSubscriber2(chstop, "checkdutime", "2348")
+	go launchSubscriber2(chstop, "checkdutime", "2349")
+	go launchSubscriber2(chstop, "checkdutime", "23410")
+	go launchSubscriber2(chstop, "checkdutime", "23411")
+	go launchSubscriber2(chstop, "checkdutime", "23412")
+	go launchSubscriber2(chstop, "checkdutime", "234513")
+	s, _ := GetService("checkdutime")
+	assert.NotNil(t, s)
+	<-time.NewTimer(50 * time.Millisecond).C
+
+	defer close(chstop)
+
 }
