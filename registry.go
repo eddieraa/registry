@@ -132,18 +132,18 @@ func (p Pong) String() string {
 	return fmt.Sprintf("%s timestamp %d, %d", p.Name, p.Timestamps.Registered, p.Timestamps.Duration)
 }
 
-func (r reg) subToPing(p *Pong) {
+func (r reg) subToPing(p *Pong) error {
 	log.Info("Sub to ping for service ", p.Name, " ", p.Address)
 	fn := func(m *pubsub.PubsubMsg) {
 		r.pubregister(p)
 	}
 	s, err := r.opts.pubsub.Sub(r.buildMessage("ping", p.Name), fn)
 	if err != nil {
-		log.Error("subToPing: ", err)
-	} else {
-		log.Debugf("Subscribe for %s OK", s.Subject())
-		r.subscriptions = append(r.subscriptions, s)
+		return err
 	}
+	log.Debugf("Subscribe for %s OK", s.Subject())
+	r.subscriptions = append(r.subscriptions, s)
+	return nil
 }
 
 func (r reg) Register(s Service) (f FnUnregister, err error) {
@@ -151,7 +151,9 @@ func (r reg) Register(s Service) (f FnUnregister, err error) {
 		s.Host = r.opts.hostname
 	}
 	p := &Pong{Service: s, Timestamps: &Timestamps{Registered: time.Now().UnixNano(), Duration: int(r.opts.registerInterval.Milliseconds())}}
-	r.subToPing(p)
+	if err = r.subToPing(p); err != nil {
+		return
+	}
 
 	r.registeredServices[s.Name+s.Address] = p
 	//notify the channel to send new message

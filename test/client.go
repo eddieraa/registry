@@ -20,12 +20,12 @@ func newCli(s *fakeServer) pubsub.Pubsub {
 }
 
 func (c *cli) Pub(topic string, data []byte) error {
-	c.server.SendMessage(&pubsub.PubsubMsg{Subject: topic, Data: data})
-	return nil
+	err := c.server.SendMessage(&pubsub.PubsubMsg{Subject: topic, Data: data})
+	return err
 }
 
 func (c *cli) Sub(topic string, f func(m *pubsub.PubsubMsg)) (res pubsub.Subscription, err error) {
-	return c.server.Sub(c, topic, f), nil
+	return c.server.Sub(c, topic, f)
 }
 func (c *cli) String() string {
 	return fmt.Sprintf("%d", c.i)

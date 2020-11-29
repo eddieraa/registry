@@ -14,6 +14,10 @@ import (
 //create in memory pubsub
 var pb = test.NewPubSub()
 
+func init() {
+	logrus.SetFormatter(&logrus.TextFormatter{DisableColors: true})
+}
+
 func newService(addr, host, name string) *Pong {
 	return &Pong{Service: Service{Address: addr, Host: host, Name: name}, Timestamps: &Timestamps{Registered: 3, Duration: 5}}
 }
@@ -182,11 +186,13 @@ func launchSubscriber2(chstop chan interface{}, name string, addr string) {
 	s := Service{Name: name, Address: fmt.Sprint("localhost:", addr)}
 	reg.Register(s)
 	<-chstop
+	logrus.Info("STTTTOOPPPPPPPP ", name, "    ", addr)
+
 	reg.Unregister(s)
 	reg.Close()
 }
 
-func _TestParalleleSetDefaulInstance(t *testing.T) {
+func TestParalleleSetDefaulInstance(t *testing.T) {
 	f := func() {
 		SetDefaultInstance(WithPubsub(pb))
 		//Close()
@@ -213,6 +219,45 @@ func TestCheckDueTime(t *testing.T) {
 	assert.NotNil(t, s)
 	<-time.NewTimer(50 * time.Millisecond).C
 
-	defer close(chstop)
+	close(chstop)
+
+}
+
+func TestPersoFilter(t *testing.T) {
+	name := "testpersofilter"
+	chstop := make(chan interface{})
+	go launchSubscriber(chstop, name, "1")
+	go launchSubscriber(chstop, name, "2")
+	filter := func(services []*Pong) []*Pong {
+		res := []*Pong{}
+		for _, s := range services {
+			if strings.HasSuffix(s.Address, "2") {
+				res = append(res, s)
+			}
+		}
+		return res
+	}
+	SetDefaultInstance(WithPubsub(pb), AddFilter(filter))
+	s, _ := GetService(name)
+	assert.NotNil(t, s)
+	assert.True(t, strings.HasSuffix(s.Address, "2"))
+	close(chstop)
+	Close()
+}
+func TestPongToString(t *testing.T) {
+	p := Pong{Service: Service{Name: "test", Address: "localhost:3434", Host: "host"}}
+	assert.NotEmpty(t, p.String())
+	p = Pong{Service: Service{Name: "test", Address: "localhost:3434", Host: "host"}, Timestamps: &Timestamps{Registered: 21323233433, Duration: 2323234}}
+	assert.NotEmpty(t, p.String())
+
+}
+
+func TestErrRegister(t *testing.T) {
+	test.GetServer().Pause()
+	defer test.GetServer().Resume()
+
+	reg, _ := NewRegistry(WithPubsub(pb))
+	_, err := reg.Register(Service{Name: "mys", Address: "x:33"})
+	assert.Equal(t, test.ErrPubsubPaused, err)
 
 }
