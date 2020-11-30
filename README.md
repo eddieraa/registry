@@ -38,51 +38,90 @@ Multi-tenant support is planned. The tool is based on pub / sub, each message ca
 
 on the server side :
 ```golang
-    //connect to nats server
-    c, err := nats.Connect("localhost:4222")
-    if err != nil {
-        log.Fatal("Could not connect to nats: ", err)
-    }
-    //Create registry instance
-    reg, err := registry.Connect(registry.Nats(c))
-    if err != nil {
-        log.Fatal("Could not open registry session", err)
-    }
-    //Register
-    unregister, err := reg.Register(registry.Service{Name: "httptest", URL: "http://localhost:8083/test"})
-    if err != nil {
-        log.Fatal("Could not register the service ", err)
-    }
-    //call the unregister func when the service is shuting done
-    defer unregister()
-    // Start your service ...
+    package main
+
+import (
+	"log"
+	"net/http"
+
+	"github.com/eddieraa/registry"
+	rnats "github.com/eddieraa/registry/nats"
+	"github.com/nats-io/nats.go"
+)
+
+func main() {
+	//connect to nats server
+	conn, err := nats.Connect(nats.DefaultURL)
+	if err != nil {
+		log.Fatal("Could not connect to nats ", err)
+	}
+
+	//create registry default instance
+	reg, err := rnats.SetDefaultInstance(conn)
+	if err != nil {
+		log.Fatal("Could not create registry instance ", err)
+	}
+
+	addr, _ := registry.FindFreeLocalAddress(10000, 10010)
+	//register "myservice"
+	fnuregister, err := reg.Register(registry.Service{Name: "myservice", Address: addr})
+	if err != nil {
+		log.Fatal("Could not register service ", err)
+	}
+
+	server := http.NewServeMux()
+	server.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte("hello"))
+	})
+	if err = http.ListenAndServe(addr, server); err != nil {
+		log.Fatal("could not create server ", err)
+	}
+
+	//Unregister
+	fnuregister()
+	reg.Close()
+	conn.Close()
+
+}
     
 ```
 
 On the client side :
 ```golang
-    //connect to nats server
-    c, err := nats.Connect("localhost:4222")
-    if err != nil {
-		log.Fatal("Could not connect to nats: ", err)
-    }
-    //Create registry instance
-    reg, err := registry.Connect(registry.Nats(c))
-	if err != nil {
-		log.Fatal("Could not open registry session", err)
-    }
-    //registry service register to nats all event for the service httptest
-    //This is optional, registry
-    err = registry.Observe("httptest")
-    if err != nil {
-        log.Error("Could not observe service ", err)
-        return
-    }
+package main
 
-    services, err := r.GetServices( "httptest")
-    if err != nil {
-        log.Error("Could not get services ", err)
-        return
-    }
-    //Do something with services
+import (
+	"log"
+
+	rnats "github.com/eddieraa/registry/nats"
+	"github.com/nats-io/nats.go"
+)
+
+func main() {
+	//connect to nats server
+	conn, err := nats.Connect(nats.DefaultURL)
+	if err != nil {
+		log.Fatal("Could not connect to nats ", err)
+	}
+
+	//create registry default instance
+	reg, err := rnats.SetDefaultInstance(conn)
+	if err != nil {
+		log.Fatal("Could not create registry instance ", err)
+	}
+
+	//lookup for "myservice"
+	s, err := reg.GetService("myservice")
+	if err != nil {
+		log.Fatal("Could not get service")
+	}
+
+	//do something with your service
+	log.Print("Find service with address ", s.Address)
+
+	reg.Close()
+	conn.Close()
+
+}
+
 ```

@@ -14,6 +14,15 @@ type subscription struct {
 	s *nats.Subscription
 }
 
+//SetDefaultInstance with a nats connection
+func SetDefaultInstance(c *nats.Conn, opts ...registry.Option) (r registry.Registry, err error) {
+	options := []registry.Option{Nats(c)}
+	if opts != nil {
+		options = append(options, opts...)
+	}
+	return registry.SetDefaultInstance(options...)
+}
+
 //NewPub return NATS Pubsub
 func NewPub(c *nats.Conn) pubsub.Pubsub {
 	pb := &pb{
