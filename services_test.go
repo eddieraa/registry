@@ -2,6 +2,7 @@ package registry
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -43,4 +44,32 @@ func TestLoadOrStore(t *testing.T) {
 		return true
 	})
 	assert.Equal(t, int64(2000), service.Timestamps.Registered)
+}
+
+func TestRebuildTestInParallele(t *testing.T) {
+	s := newServices()
+	store := func() {
+		for n := 0; n < 100; n++ {
+			s.LoadOrStore(pong("service1", "localhost:4334"))
+			s.LoadOrStore(pong("service1", "localhost:4335"))
+			s.LoadOrStore(pong("service1", "localhost:4336"))
+			s.LoadOrStore(pong("service1", "localhost:4334"))
+			s.rebuildCache("")
+			<-time.NewTimer(1 * time.Millisecond).C
+		}
+
+	}
+
+	del := func() {
+		for n := 0; n < 100; n++ {
+			s.GetServices("service1")
+			<-time.NewTimer(1 * time.Millisecond).C
+		}
+	}
+	go store()
+	go del()
+	go store()
+
+	<-time.NewTimer(1000 * time.Millisecond).C
+
 }

@@ -12,7 +12,7 @@ import (
 
 func main() {
 	logrus.SetLevel(logrus.DebugLevel)
-	r, err := registry.Connect(redis.NewRedisClient(""))
+	r, err := registry.NewRegistry(redis.NewRedisClient(""))
 	if err != nil {
 		logrus.Fatal("unable to connect to redis ", err)
 	}

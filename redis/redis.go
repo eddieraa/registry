@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/eddieraa/registry"
+	pb "github.com/eddieraa/registry/pubsub"
 	"github.com/go-redis/redis/v8"
 	"github.com/sirupsen/logrus"
 )
@@ -20,7 +21,7 @@ type pubsub struct {
 type subscription struct {
 	channel string
 	unsub   func() error
-	sub     func(m *registry.PubsubMsg)
+	sub     func(m *pb.PubsubMsg)
 }
 
 //NewRedisClient return Options with redis connection
@@ -40,7 +41,7 @@ func WithRedis(rdb *redis.Client) registry.Option {
 }
 
 //NewPub return Redis Pubsub
-func NewPub(rb *redis.Client) registry.Pubsub {
+func NewPub(rb *redis.Client) pb.Pubsub {
 	ctx := context.Background()
 	res := &pubsub{
 		rb:            rb,
@@ -63,13 +64,13 @@ stop:
 			break stop
 		case m := <-ch:
 			if s, ok := p.subscriptions[m.Channel]; ok {
-				s.sub(&registry.PubsubMsg{Subject: m.Channel, Data: []byte(m.Payload)})
+				s.sub(&pb.PubsubMsg{Subject: m.Channel, Data: []byte(m.Payload)})
 			}
 		}
 	}
 }
 
-func (p *pubsub) Sub(topic string, f func(m *registry.PubsubMsg)) (registry.Subscription, error) {
+func (p *pubsub) Sub(topic string, f func(m *pb.PubsubMsg)) (pb.Subscription, error) {
 	logrus.Debug("sub ", topic)
 	err := p.pb.Subscribe(p.ctx, topic)
 	if err != nil {

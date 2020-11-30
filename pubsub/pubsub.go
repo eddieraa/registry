@@ -1,4 +1,4 @@
-package registry
+package pubsub
 
 //PubsubMsg message for pubsub event
 type PubsubMsg struct {

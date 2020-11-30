@@ -8,7 +8,7 @@ import (
 
 func main() {
 	logrus.SetLevel(logrus.DebugLevel)
-	r, err := registry.Connect(redis.NewRedisClient(""))
+	r, err := registry.NewRegistry(redis.NewRedisClient(""))
 	if err != nil {
 		logrus.Fatal("Unable to create registry ", err)
 	}
