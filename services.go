@@ -7,12 +7,13 @@ import (
 )
 
 type services struct {
-	cache map[string][]*Pong
-	m     sync.Map
+	_cache map[string][]*Pong
+	m      sync.Map
+	mu     sync.Mutex
 }
 
 func newServices() *services {
-	s := &services{cache: make(map[string][]*Pong)}
+	s := &services{_cache: make(map[string][]*Pong)}
 	return s
 }
 
@@ -73,22 +74,41 @@ func (s *services) LoadOrStore(p *Pong) (res *Pong, loaded bool) {
 	}
 	return res, loaded
 }
+
+func (s *services) getCache() map[string][]*Pong {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s._cache
+}
+func (s *services) setCache(newCache map[string][]*Pong) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s._cache = newCache
+}
+
 func (s *services) nbService(name string) (nb int) {
-	nb = len(s.cache[name])
+	nb = len(s.getCache()[name])
 	return
 }
 func (s *services) rebuildCache(name string) {
 	logrus.Debug("Rebuild cache for ", name)
+
+	ref := s.getCache()
+	cache := make(map[string][]*Pong)
+	for k, v := range ref {
+		cache[k] = v
+	}
+
 	if name == "" {
 		toDelete := make([]string, 0)
-		for k := range s.cache {
-			if _, exist := s.cache[k]; !exist {
+		for k := range cache {
+			if _, exist := cache[k]; !exist {
 				toDelete = append(toDelete, k)
 			}
 		}
 		if len(toDelete) == 0 {
 			for _, k := range toDelete {
-				delete(s.cache, k)
+				delete(cache, k)
 			}
 		}
 		s.IterateServiceName(func(key string) bool {
@@ -102,9 +122,10 @@ func (s *services) rebuildCache(name string) {
 			services = append(services, v)
 			return true
 		})
-		s.cache[name] = services
+		cache[name] = services
 	}
+	s.setCache(cache)
 }
 func (s *services) GetServices(name string) (pongs []*Pong) {
-	return s.cache[name]
+	return s.getCache()[name]
 }

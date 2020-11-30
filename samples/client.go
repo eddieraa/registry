@@ -38,7 +38,7 @@ func main() {
 			logrus.Fatal("Could not get service ", err)
 		}
 
-		rep, err := http.Get(fmt.Sprintf("http://%s/", service.Address))
+		rep, err := http.Get(fmt.Sprintf("http://%s/httptest", service.Address))
 		if err != nil {
 			logrus.Fatal("Could net request url ", err)
 		}
