@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/eddieraa/registry/pubsub"
 	"github.com/sirupsen/logrus"
 	log "github.com/sirupsen/logrus"
 )
@@ -96,7 +97,7 @@ type reg struct {
 
 	//references to all subscriptions to nats
 	//these subscriptions unsubscripe when Close function will be call
-	subscriptions []Subscription
+	subscriptions []pubsub.Subscription
 }
 
 var (
@@ -105,23 +106,17 @@ var (
 	//ErrNoDefaultInstance when intance singleton has not been set
 	ErrNoDefaultInstance = errors.New("Default instance has not been set, call SetDefaultInstance before")
 	//singleton instance
-	instance    *reg
-	intanceOnce sync.Once
+	instance *reg
+	mu       sync.Mutex
 )
 
-func (r reg) buildMessage(message, service string, args ...string) string {
+func (r reg) buildMessage(message, service string) string {
 	var b strings.Builder
 	b.WriteString(r.opts.mainTopic)
 	b.WriteString(".")
 	b.WriteString(message)
 	b.WriteString(".")
 	b.WriteString(service)
-	if args != nil {
-		for _, s := range args {
-			b.WriteString(".")
-			b.WriteString(s)
-		}
-	}
 	return b.String()
 }
 
@@ -137,18 +132,18 @@ func (p Pong) String() string {
 	return fmt.Sprintf("%s timestamp %d, %d", p.Name, p.Timestamps.Registered, p.Timestamps.Duration)
 }
 
-func (r reg) subToPing(p *Pong) {
+func (r reg) subToPing(p *Pong) error {
 	log.Info("Sub to ping for service ", p.Name, " ", p.Address)
-	fn := func(m *PubsubMsg) {
+	fn := func(m *pubsub.PubsubMsg) {
 		r.pubregister(p)
 	}
 	s, err := r.opts.pubsub.Sub(r.buildMessage("ping", p.Name), fn)
 	if err != nil {
-		log.Error("subToPing: ", err)
-	} else {
-		log.Debugf("Subscribe for %s OK", s.Subject())
-		r.subscriptions = append(r.subscriptions, s)
+		return err
 	}
+	log.Debugf("Subscribe for %s OK", s.Subject())
+	r.subscriptions = append(r.subscriptions, s)
+	return nil
 }
 
 func (r reg) Register(s Service) (f FnUnregister, err error) {
@@ -156,7 +151,9 @@ func (r reg) Register(s Service) (f FnUnregister, err error) {
 		s.Host = r.opts.hostname
 	}
 	p := &Pong{Service: s, Timestamps: &Timestamps{Registered: time.Now().UnixNano(), Duration: int(r.opts.registerInterval.Milliseconds())}}
-	r.subToPing(p)
+	if err = r.subToPing(p); err != nil {
+		return
+	}
 
 	r.registeredServices[s.Name+s.Address] = p
 	//notify the channel to send new message
@@ -211,7 +208,7 @@ stop:
 
 func (r reg) checkDueTime() {
 	toDel := []*Pong{}
-	now := time.Now()
+	now := time.Now().Local()
 	r.ser.IterateAll(func(key string, s *Pong) bool {
 		if now.After(s.dueTime) {
 			toDel = append(toDel, s)
@@ -253,7 +250,7 @@ func NewRegistry(opts ...Option) (r Registry, err error) {
 		registeredServices:              make(map[string]*Pong),
 		chFiredRegisteredService:        make(chan *Pong),
 		chStopChannelRegisteredServices: make(chan bool),
-		subscriptions:                   make([]Subscription, 0),
+		subscriptions:                   make([]pubsub.Subscription, 0),
 	}
 	go r.(*reg).registerServiceInContinue()
 	return r, err
@@ -263,16 +260,13 @@ func NewRegistry(opts ...Option) (r Registry, err error) {
 //
 // ex pubsub transport
 func SetDefaultInstance(opts ...Option) (r Registry, err error) {
+	mu.Lock()
+	defer mu.Unlock()
 	if instance == nil {
-		intanceOnce.Do(func() {
-			r, err = NewRegistry(opts...)
-			if err != nil {
-				//create new instanceOnce
-				intanceOnce = sync.Once{}
-			} else {
-				instance = r.(*reg)
-			}
-		})
+		r, err = NewRegistry(opts...)
+		if err == nil {
+			instance = r.(*reg)
+		}
 	}
 
 	return
@@ -435,7 +429,7 @@ func (r reg) GetServices(name string) ([]Service, error) {
 	return r.getinternalService(name)
 }
 
-func (r reg) subregister(msg *PubsubMsg) {
+func (r reg) subregister(msg *pubsub.PubsubMsg) {
 	var p *Pong
 	err := json.Unmarshal(msg.Data, &p)
 	if err != nil {
@@ -462,13 +456,12 @@ func (r reg) subregister(msg *PubsubMsg) {
 		d := int(float32(p.Timestamps.Duration) * r.opts.dueDurationFactor)
 		registered := p.Timestamps.Registered * int64(time.Millisecond)
 		p.dueTime = time.Unix(0, registered).Add(time.Duration(d) * time.Millisecond)
-		log.Debug(p.dueTime.Local().Format(time.ANSIC))
 	}
 	log.Debugf("append %s ", p.Service)
 
 }
 
-func (r reg) subunregister(msg *PubsubMsg) {
+func (r reg) subunregister(msg *pubsub.PubsubMsg) {
 	var s Service
 	err := json.Unmarshal(msg.Data, &s)
 	if err != nil {
@@ -519,7 +512,6 @@ func (r reg) Close() (err error) {
 	}
 	r.subscriptions = r.subscriptions[0:0]
 	instance = nil
-	intanceOnce = sync.Once{}
 	log.Debug("Close registry done")
 	return
 }
