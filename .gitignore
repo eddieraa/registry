@@ -1,4 +1,6 @@
 samples/httptest/httptest
 samples/samples
+redis/sample/sample
 samples/samples.exe
 samples/httptest/httptest.exe
+redis/sample/sample.exe

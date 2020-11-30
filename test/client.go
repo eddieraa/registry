@@ -24,6 +24,10 @@ func (c *cli) Pub(topic string, data []byte) error {
 	return err
 }
 
+func (c *cli) Stop() {
+	c.server.Pause()
+}
+
 func (c *cli) Sub(topic string, f func(m *pubsub.PubsubMsg)) (res pubsub.Subscription, err error) {
 	return c.server.Sub(c, topic, f)
 }
