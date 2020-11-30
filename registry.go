@@ -208,7 +208,7 @@ stop:
 
 func (r reg) checkDueTime() {
 	toDel := []*Pong{}
-	now := time.Now()
+	now := time.Now().Local()
 	r.ser.IterateAll(func(key string, s *Pong) bool {
 		if now.After(s.dueTime) {
 			toDel = append(toDel, s)
@@ -456,7 +456,6 @@ func (r reg) subregister(msg *pubsub.PubsubMsg) {
 		d := int(float32(p.Timestamps.Duration) * r.opts.dueDurationFactor)
 		registered := p.Timestamps.Registered * int64(time.Millisecond)
 		p.dueTime = time.Unix(0, registered).Add(time.Duration(d) * time.Millisecond)
-		log.Debug(p.dueTime.Local().Format(time.ANSIC))
 	}
 	log.Debugf("append %s ", p.Service)
 

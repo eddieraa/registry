@@ -63,7 +63,7 @@ func TestChainFilter(t *testing.T) {
 }
 
 func launchSubscriber(chstop chan interface{}, name string, addr string) {
-	reg, _ := NewRegistry(WithPubsub(pb))
+	reg, _ := NewRegistry(WithPubsub(pb), RegisterInterval(500*time.Millisecond))
 	s := Service{Name: name, Address: fmt.Sprint("localhost:", addr)}
 	reg.Register(s)
 	<-chstop
@@ -289,4 +289,28 @@ func TestSubToPing(t *testing.T) {
 
 	reg.Close()
 	Close()
+}
+func TestDueTime(t *testing.T) {
+	service := "service-checkduetime"
+	test.GetServer().Resume()
+	SetDefaultInstance(WithPubsub(pb), RegisterInterval(20*time.Millisecond))
+	ch := make(chan interface{})
+	go launchSubscriber(ch, service, "h:43")
+	s, _ := GetService(service)
+	assert.NotNil(t, s)
+	test.GetServer().Pause()
+	<-time.NewTimer(1000 * time.Millisecond).C
+	s, err := GetService(service)
+	assert.NotNil(t, err)
+	assert.Nil(t, s)
+
+	close(ch)
+	Close()
+}
+
+func TestMainTopic(t *testing.T) {
+	r, _ := NewRegistry(WithPubsub(pb), MainTopic("maintopic"))
+	assert.Equal(t, "maintopic.toto.titi", r.(*reg).buildMessage("toto", "titi"))
+	r.Close()
+
 }
