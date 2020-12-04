@@ -291,6 +291,7 @@ func TestSubToPing(t *testing.T) {
 	Close()
 }
 func TestDueTime(t *testing.T) {
+	reset()
 	service := "service-checkduetime"
 	test.GetServer().Resume()
 	SetDefault(WithPubsub(pb), RegisterInterval(20*time.Millisecond))
@@ -305,7 +306,6 @@ func TestDueTime(t *testing.T) {
 	assert.Nil(t, s)
 
 	close(ch)
-	Close()
 }
 
 func TestMainTopic(t *testing.T) {
@@ -316,7 +316,7 @@ func TestMainTopic(t *testing.T) {
 }
 
 func TestGetSubscribers(t *testing.T) {
-	Close()
+	reset()
 	_, err := GetDefault()
 	assert.Equal(t, err, ErrNoDefaultInstance)
 	SetDefault(WithPubsub(pb))
@@ -345,6 +345,32 @@ func TestGetSubscribers(t *testing.T) {
 	close(ch)
 }
 
+func TestGetSubscribers2(t *testing.T) {
+	reset()
+	_, err := GetDefault()
+	assert.Equal(t, err, ErrNoDefaultInstance)
+	SetDefault(WithPubsub(pb))
+	r, err := GetDefault()
+	assert.Nil(t, err)
+	services := r.Subscribers()
+	assert.Empty(t, services)
+	ch := make(chan interface{})
+	go launchSubscriber(ch, "testregistered2.s1", "h:43")
+	go launchSubscriber(ch, "testregistered2.s1", "h:44")
+	go launchSubscriber(ch, "testregistered2.s2", "h:43")
+	go launchSubscriber(ch, "testregistered2.s3", "h:43")
+	go launchSubscriber(ch, "testregistered2.s4", "h:43")
+	r.Observe("testregistered2.*")
+	<-time.NewTimer(1000 * time.Millisecond).C
+	services = r.Subscribers()
+	assert.Equal(t, 4, len(services))
+	r.Observe("testregistered2.s3")
+	<-time.NewTimer(100 * time.Millisecond).C
+	assert.Equal(t, 4, len(services))
+	close(ch)
+
+}
+
 func TestFindFreePort(t *testing.T) {
 	min := 10000
 	max := 10100
@@ -360,4 +386,22 @@ func TestFindFreePort(t *testing.T) {
 	addr, err = FindFreeLocalAddress(min, max)
 	assert.Nil(t, err)
 	assert.NotEmpty(t, addr)
+}
+
+func reset() {
+	Close()
+	test.GetServer().Resume()
+}
+func TestOptsTimeout(t *testing.T) {
+	reset()
+	mypb := test.NewPubSub()
+	r, _ := NewRegistry(WithPubsub(mypb), Timeout(50*time.Millisecond))
+	now := time.Now()
+	s, err := r.GetService("testtimeout")
+	assert.NotNil(t, err)
+	assert.Empty(t, s)
+	d := time.Now().Sub(now) - 50*time.Millisecond
+
+	assert.Greater(t, int64(d), int64(0))
+	Close()
 }

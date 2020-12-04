@@ -168,7 +168,9 @@ func (r reg) Register(s Service) (f FnUnregister, err error) {
 func (r reg) Subscribers() []string {
 	res := []string{}
 	for k := range r.observers {
-		res = append(res, k)
+		if !strings.HasSuffix(k, "*") {
+			res = append(res, k)
+		}
 	}
 	return res
 }
@@ -304,7 +306,9 @@ func Close() error {
 	if instance == nil {
 		return ErrNoDefaultInstance
 	}
-	return instance.Close()
+	err := instance.Close()
+	instance = nil
+	return err
 }
 
 //GetServices return all registered service
