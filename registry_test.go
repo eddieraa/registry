@@ -71,7 +71,9 @@ func launchSubscriber(chstop chan interface{}, name string, addr string) {
 	s := Service{Name: name, Address: myaddr}
 	fn, _ := reg.Register(s)
 	<-chstop
-	fn()
+	if fn != nil {
+		fn()
+	}
 	reg.Close()
 }
 
