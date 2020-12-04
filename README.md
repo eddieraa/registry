@@ -57,7 +57,7 @@ func main() {
 	}
 
 	//create registry default instance
-	reg, err := rnats.SetDefaultInstance(conn)
+	reg, err := rnats.SetDefault(conn)
 	if err != nil {
 		log.Fatal("Could not create registry instance ", err)
 	}
@@ -105,7 +105,7 @@ func main() {
 	}
 
 	//create registry default instance
-	reg, err := rnats.SetDefaultInstance(conn)
+	reg, err := rnats.SetDefault(conn)
 	if err != nil {
 		log.Fatal("Could not create registry instance ", err)
 	}

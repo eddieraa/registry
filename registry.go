@@ -19,6 +19,7 @@ type Registry interface {
 	GetServices(name string) ([]Service, error)
 	GetService(name string, filters ...Filter) (*Service, error)
 	Observe(serviceName string) error
+	Subscribers() []string
 	Close() error
 }
 
@@ -103,7 +104,7 @@ var (
 	//ErrNotFound when no service found
 	ErrNotFound = errors.New("No service found")
 	//ErrNoDefaultInstance when intance singleton has not been set
-	ErrNoDefaultInstance = errors.New("Default instance has not been set, call SetDefaultInstance before")
+	ErrNoDefaultInstance = errors.New("Default instance has not been set, call SetDefault before")
 	//singleton instance
 	instance *reg
 	mu       sync.Mutex
@@ -162,6 +163,14 @@ func (r reg) Register(s Service) (f FnUnregister, err error) {
 	}
 	return
 
+}
+
+func (r reg) Subscribers() []string {
+	res := []string{}
+	for k := range r.observers {
+		res = append(res, k)
+	}
+	return res
 }
 
 func (r reg) pubregister(p *Pong) (err error) {
@@ -255,10 +264,10 @@ func NewRegistry(opts ...Option) (r Registry, err error) {
 	return r, err
 }
 
-//SetDefaultInstance set the default instance
+//SetDefault set the default instance
 //
 // ex pubsub transport
-func SetDefaultInstance(opts ...Option) (r Registry, err error) {
+func SetDefault(opts ...Option) (r Registry, err error) {
 	mu.Lock()
 	defer mu.Unlock()
 	if instance == nil {
@@ -267,13 +276,20 @@ func SetDefaultInstance(opts ...Option) (r Registry, err error) {
 			instance = r.(*reg)
 		}
 	}
-
 	return
+}
+
+//GetDefault return default instance. return err if no default instance had been set
+func GetDefault() (r Registry, err error) {
+	if instance == nil {
+		return nil, ErrNoDefaultInstance
+	}
+	return instance, nil
 }
 
 //GetService find service with service name
 //
-//Call SetDefaultInstance before use
+//Call SetDefault before use
 func GetService(name string, f ...Filter) (*Service, error) {
 	if instance == nil {
 		return nil, ErrNoDefaultInstance
@@ -283,7 +299,7 @@ func GetService(name string, f ...Filter) (*Service, error) {
 
 //Close the registry instance
 //
-//Call SetDefaultInstance before
+//Call SetDefault before
 func Close() error {
 	if instance == nil {
 		return ErrNoDefaultInstance
@@ -293,7 +309,7 @@ func Close() error {
 
 //GetServices return all registered service
 //
-//Call SetDefaultInstance before use
+//Call SetDefault before use
 func GetServices(name string) ([]Service, error) {
 	if instance == nil {
 		return nil, ErrNoDefaultInstance
@@ -303,7 +319,7 @@ func GetServices(name string) ([]Service, error) {
 
 //Observe subscribe to service
 //
-//Call SetDefaultInstance before use
+//Call SetDefault before use
 func Observe(name string) error {
 	if instance == nil {
 		return ErrNoDefaultInstance
@@ -313,7 +329,7 @@ func Observe(name string) error {
 
 //Register register a new service
 //
-//Call SetDefaultInstance before use
+//Call SetDefault before use
 func Register(s Service) (FnUnregister, error) {
 	if instance == nil {
 		return nil, ErrNoDefaultInstance
@@ -323,7 +339,7 @@ func Register(s Service) (FnUnregister, error) {
 
 //Unregister unregister a service
 //
-//Call SetDefaultInstance before use
+//Call SetDefault before use
 func Unregister(s Service) error {
 	if instance == nil {
 		return ErrNoDefaultInstance

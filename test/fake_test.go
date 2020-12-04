@@ -65,7 +65,7 @@ func launchFakeService(t *testing.T) {
 
 func TestRegistry(t *testing.T) {
 	pb := NewPubSub()
-	registry.SetDefaultInstance(registry.WithPubsub(pb))
+	registry.SetDefault(registry.WithPubsub(pb))
 	go launchFakeService(t)
 	s, err := registry.GetService("test")
 	assert.Nil(t, err)

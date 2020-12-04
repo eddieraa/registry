@@ -72,7 +72,7 @@ func launchSubscriber(chstop chan interface{}, name string, addr string) {
 }
 
 func TestRegWithDefaultInstance(t *testing.T) {
-	SetDefaultInstance(WithPubsub(pb), RegisterInterval(50*time.Millisecond))
+	SetDefault(WithPubsub(pb), RegisterInterval(50*time.Millisecond))
 	s, err := GetService("test")
 	assert.Nil(t, s)
 	assert.NotNil(t, err)
@@ -179,7 +179,7 @@ func TestObserveEventWithDefault(t *testing.T) {
 		chobs <- ev
 	}
 
-	SetDefaultInstance(WithPubsub(pb), SetObserverEvent(ov))
+	SetDefault(WithPubsub(pb), SetObserverEvent(ov))
 	Observe("testservice2")
 	chstop := make(chan interface{})
 	go launchSubscriber(chstop, "testservice2", ":1")
@@ -204,7 +204,7 @@ func launchSubscriber2(chstop chan interface{}, name string, addr string) {
 
 func TestParalleleSetDefaulInstance(t *testing.T) {
 	f := func() {
-		SetDefaultInstance(WithPubsub(pb))
+		SetDefault(WithPubsub(pb))
 		//Close()
 	}
 	for i := 0; i < 1000; i++ {
@@ -214,7 +214,7 @@ func TestParalleleSetDefaulInstance(t *testing.T) {
 }
 
 func TestCheckDueTime(t *testing.T) {
-	SetDefaultInstance(WithPubsub(pb))
+	SetDefault(WithPubsub(pb))
 	chstop := make(chan interface{})
 	go launchSubscriber2(chstop, "checkdutime", "2344")
 	go launchSubscriber2(chstop, "checkdutime", "2345")
@@ -249,7 +249,7 @@ func TestPersoFilter(t *testing.T) {
 		}
 		return res
 	}
-	SetDefaultInstance(WithPubsub(pb), AddFilter(filter))
+	SetDefault(WithPubsub(pb), AddFilter(filter))
 	s, _ := GetService(name)
 	assert.NotNil(t, s)
 	assert.True(t, strings.HasSuffix(s.Address, "2"))
@@ -278,7 +278,7 @@ func TestErrRegister(t *testing.T) {
 func TestSubToPing(t *testing.T) {
 	service := "subtoping"
 	test.GetServer().Resume()
-	SetDefaultInstance(WithPubsub(pb))
+	SetDefault(WithPubsub(pb))
 	_, err := Register(Service{Name: service, Address: "x:123"})
 	assert.Nil(t, err)
 
@@ -293,7 +293,7 @@ func TestSubToPing(t *testing.T) {
 func TestDueTime(t *testing.T) {
 	service := "service-checkduetime"
 	test.GetServer().Resume()
-	SetDefaultInstance(WithPubsub(pb), RegisterInterval(20*time.Millisecond))
+	SetDefault(WithPubsub(pb), RegisterInterval(20*time.Millisecond))
 	ch := make(chan interface{})
 	go launchSubscriber(ch, service, "h:43")
 	s, _ := GetService(service)
@@ -313,4 +313,51 @@ func TestMainTopic(t *testing.T) {
 	assert.Equal(t, "maintopic.toto.titi", r.(*reg).buildMessage("toto", "titi"))
 	r.Close()
 
+}
+
+func TestGetSubscribers(t *testing.T) {
+	Close()
+	_, err := GetDefault()
+	assert.Equal(t, err, ErrNoDefaultInstance)
+	SetDefault(WithPubsub(pb))
+	r, err := GetDefault()
+	assert.Nil(t, err)
+	services := r.Subscribers()
+	assert.Empty(t, services)
+	ch := make(chan interface{})
+	go launchSubscriber(ch, "testregistered.s1", "h:43")
+	go launchSubscriber(ch, "testregistered.s1", "h:44")
+	go launchSubscriber(ch, "testregistered.s2", "h:43")
+	go launchSubscriber(ch, "testregistered.s3", "h:43")
+	go launchSubscriber(ch, "testregistered.s4", "h:43")
+	r.Observe("testregistered.s1")
+	services = r.Subscribers()
+	assert.Equal(t, 1, len(services))
+	r.Observe("testregistered.s2")
+	services = r.Subscribers()
+	assert.Equal(t, 2, len(services))
+	r.Close()
+	SetDefault(WithPubsub(pb))
+	r, _ = GetDefault()
+	services = r.Subscribers()
+	assert.Equal(t, 0, len(services))
+
+	close(ch)
+}
+
+func TestFindFreePort(t *testing.T) {
+	min := 10000
+	max := 10100
+	p, err := FindFreePort(min, max)
+	assert.Nil(t, err)
+	assert.GreaterOrEqual(t, p, min)
+	assert.LessOrEqual(t, p, max)
+
+	addr, err := LocalFreeAddr()
+	assert.Nil(t, err)
+	assert.NotEmpty(t, addr)
+
+	addr, err = FindFreeLocalAddress(min, max)
+	assert.Nil(t, err)
+	assert.NotEmpty(t, addr)
 }
