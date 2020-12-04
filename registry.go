@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/eddieraa/registry/pubsub"
-	"github.com/sirupsen/logrus"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -177,7 +176,7 @@ func (r reg) pubregister(p *Pong) (err error) {
 		log.Error("publish register failed for service ", p.Name, " :", err)
 		return
 	}
-	log.Infof("%s (%s) host: %s", topic, p.Address, p.Host)
+	log.Debugf("%s (%s) host: %s", topic, p.Address, p.Host)
 	return
 }
 
@@ -433,7 +432,7 @@ func (r reg) subregister(msg *pubsub.PubsubMsg) {
 	var p *Pong
 	err := json.Unmarshal(msg.Data, &p)
 	if err != nil {
-		logrus.Errorf("unmarshal error when sub to register: %s", err)
+		log.Errorf("unmarshal error when sub to register: %s", err)
 		return
 	}
 	for _, f := range r.opts.observeFilters {
@@ -465,7 +464,7 @@ func (r reg) subunregister(msg *pubsub.PubsubMsg) {
 	var s Service
 	err := json.Unmarshal(msg.Data, &s)
 	if err != nil {
-		logrus.Errorf("unmarshal error when sub to register: %s", err)
+		log.Errorf("unmarshal error when sub to register: %s", err)
 		return
 	}
 	p := &Pong{Service: s}
@@ -478,7 +477,7 @@ func (r reg) subunregister(msg *pubsub.PubsubMsg) {
 		r.opts.observerEvent(s, EventUnregister)
 	}
 	r.ser.DeleteByName(s.Name + s.Address)
-	logrus.Debugf("Unregister service %s/%s", s.Name, s.Address)
+	log.Debugf("Unregister service %s/%s", s.Name, s.Address)
 }
 
 func (r reg) Observe(service string) error {
