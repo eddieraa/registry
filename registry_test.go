@@ -64,10 +64,14 @@ func TestChainFilter(t *testing.T) {
 
 func launchSubscriber(chstop chan interface{}, name string, addr string) {
 	reg, _ := NewRegistry(WithPubsub(pb), RegisterInterval(500*time.Millisecond))
-	s := Service{Name: name, Address: fmt.Sprint("localhost:", addr)}
-	reg.Register(s)
+	myaddr := addr
+	if !strings.Contains(addr, ":") {
+		myaddr = fmt.Sprint("localhost:", addr)
+	}
+	s := Service{Name: name, Address: myaddr}
+	fn, _ := reg.Register(s)
 	<-chstop
-	reg.Unregister(s)
+	fn()
 	reg.Close()
 }
 
@@ -182,7 +186,7 @@ func TestObserveEventWithDefault(t *testing.T) {
 	SetDefault(WithPubsub(pb), SetObserverEvent(ov))
 	Observe("testservice2")
 	chstop := make(chan interface{})
-	go launchSubscriber(chstop, "testservice2", ":1")
+	go launchSubscriber(chstop, "testservice2", "1")
 	ev := <-chobs
 	assert.Equal(t, EventRegister, ev)
 	chstop <- true
@@ -404,4 +408,31 @@ func TestOptsTimeout(t *testing.T) {
 
 	assert.Greater(t, int64(d), int64(0))
 	Close()
+}
+
+func TestAddObserveFilter(t *testing.T) {
+	reset()
+	of := func(p *Pong) (res bool) {
+		if strings.HasPrefix(p.Address, "localhost:") {
+			res = true
+		}
+		return
+	}
+	SetDefault(WithPubsub(pb), AddObserveFilter(of))
+	ch := make(chan interface{})
+	go launchSubscriber(ch, "of.s1", "localhost:43")
+	go launchSubscriber(ch, "of.s1", "localhost:44")
+	go launchSubscriber(ch, "of.s1", "10.10.1.11:43")
+	go launchSubscriber(ch, "of.s3", "10.10.1.11:43")
+	Observe("of.s1")
+	<-time.NewTimer(100 * time.Millisecond).C
+	services, _ := GetServices("of.s1")
+	assert.Equal(t, 2, len(services))
+	close(ch)
+}
+
+func TestLocalFreeIPv6Addr(t *testing.T) {
+	add, err := LocalFreeIPv6Addr()
+	assert.Nil(t, err)
+	assert.NotNil(t, add)
 }
