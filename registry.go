@@ -178,16 +178,15 @@ func (r reg) Subscribers() []string {
 func (r reg) pubregister(p *Pong) (err error) {
 	var data []byte
 	p.Timestamps.Registered = time.Now().UnixNano() / 1000000
-	if data, err = json.Marshal(p); err != nil {
-		log.Error("publish register failed unmarshal service ", p.Name, " :", err)
-		return
+	data, err = json.Marshal(p)
+	if err == nil {
+		topic := r.buildMessage("register", p.Name)
+		if err = r.opts.pubsub.Pub(topic, data); err != nil {
+			log.Error("publish register failed for service ", p.Name, " :", err)
+			return
+		}
+		log.Debugf("%s (%s) host: %s", topic, p.Address, p.Host)
 	}
-	topic := r.buildMessage("register", p.Name)
-	if err = r.opts.pubsub.Pub(topic, data); err != nil {
-		log.Error("publish register failed for service ", p.Name, " :", err)
-		return
-	}
-	log.Debugf("%s (%s) host: %s", topic, p.Address, p.Host)
 	return
 }
 
@@ -238,15 +237,16 @@ func (r reg) checkDueTime() {
 
 func (r reg) Unregister(s Service) (err error) {
 	var data []byte
-	if data, err = json.Marshal(s); err != nil {
-		return
+	var topic string
+	data, err = json.Marshal(s)
+	if err == nil {
+		topic = r.buildMessage("unregister", s.Name)
+		err = r.opts.pubsub.Pub(topic, data)
+		if r.registeredServices != nil {
+			delete(r.registeredServices, s.Name+s.Address)
+		}
+		log.Infof("%s (%s) host: %s", topic, s.Address, s.Host)
 	}
-	topic := r.buildMessage("unregister", s.Name)
-	err = r.opts.pubsub.Pub(topic, data)
-	if r.registeredServices != nil {
-		delete(r.registeredServices, s.Name+s.Address)
-	}
-	log.Infof("%s (%s) host: %s", topic, s.Address, s.Host)
 	return
 
 }

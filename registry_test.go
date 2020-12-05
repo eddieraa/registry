@@ -2,6 +2,7 @@ package registry
 
 import (
 	"fmt"
+	"net"
 	"strings"
 	"testing"
 	"time"
@@ -392,6 +393,17 @@ func TestFindFreePort(t *testing.T) {
 	addr, err = FindFreeLocalAddress(min, max)
 	assert.Nil(t, err)
 	assert.NotEmpty(t, addr)
+	var n *net.TCPAddr
+	if n, err = net.ResolveTCPAddr("tcp", addr); err == nil {
+		var l *net.TCPListener
+		if l, err = net.ListenTCP("tcp", n); err == nil {
+			addr, err = FindFreeLocalAddress(min, min)
+			l.Close()
+		}
+	}
+
+	assert.NotNil(t, err)
+	assert.Empty(t, addr)
 }
 
 func reset() {
