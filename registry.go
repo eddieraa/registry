@@ -491,15 +491,13 @@ func (r *reg) Observe(service string) (err error) {
 	}
 	var s pubsub.Subscription
 	s, err = r.opts.pubsub.Sub(r.buildMessage("register", service), r.subregister)
-	if err != nil {
-		return
+	if err == nil {
+		r.subscriptions = append(r.subscriptions, s)
+		s, err = r.opts.pubsub.Sub(r.buildMessage("unregister", service), r.subunregister)
+		if err == nil {
+			r.subscriptions = append(r.subscriptions, s)
+		}
 	}
-	r.subscriptions = append(r.subscriptions, s)
-	s, err = r.opts.pubsub.Sub(r.buildMessage("unregister", service), r.subunregister)
-	if err != nil {
-		return
-	}
-	r.subscriptions = append(r.subscriptions, s)
 	return
 }
 
