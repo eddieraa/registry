@@ -383,7 +383,7 @@ func chainFilters(pongs []*Pong, filters ...Filter) []Service {
 	return res
 }
 
-func (r *reg) getinternalService(name string, serviceFilters ...Filter) ([]Service, error) {
+func (r *reg) getinternalService(name string, serviceFilters ...Filter) (services []Service, err error) {
 	filters := serviceFilters
 	if filters == nil {
 		filters = r.opts.filters
@@ -399,28 +399,23 @@ func (r *reg) getinternalService(name string, serviceFilters ...Filter) ([]Servi
 	ch := make(chan *Service)
 	observe := &observe{}
 	r.observers[name] = observe
-	if filters != nil {
-		observe.callback = func(p *Pong) {
-			ok := true
-			arg := []*Pong{p}
-			for _, f := range filters {
-				if filtered := f(arg); filtered == nil || len(filtered) == 0 {
-					ok = false
-				}
-			}
-			if ok {
-				observe.callback = nil
-				ch <- &p.Service
+
+	observe.callback = func(p *Pong) {
+		ok := true
+		arg := []*Pong{p}
+		for _, f := range filters {
+			if filtered := f(arg); filtered == nil || len(filtered) == 0 {
+				ok = false
 			}
 		}
-	} else {
-		observe.callback = func(p *Pong) {
+		if ok {
 			observe.callback = nil
 			ch <- &p.Service
 		}
 	}
+
 	r.Observe(name)
-	err := r.opts.pubsub.Pub(r.buildMessage("ping", name), nil)
+	err = r.opts.pubsub.Pub(r.buildMessage("ping", name), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -435,10 +430,11 @@ func (r *reg) getinternalService(name string, serviceFilters ...Filter) ([]Servi
 		close(ch)
 		break
 	}
+	tk.Stop()
 	if serviceFound != nil {
 		return []Service{*serviceFound}, nil
 	}
-	tk.Stop()
+
 	return nil, ErrNotFound
 
 }
