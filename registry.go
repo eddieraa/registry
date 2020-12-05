@@ -485,21 +485,22 @@ func (r *reg) subunregister(msg *pubsub.PubsubMsg) {
 	log.Debugf("Unregister service %s/%s", s.Name, s.Address)
 }
 
-func (r *reg) Observe(service string) error {
+func (r *reg) Observe(service string) (err error) {
 	if _, ok := r.observers[service]; !ok {
 		r.observers[service] = &observe{}
 	}
-	s, err := r.opts.pubsub.Sub(r.buildMessage("register", service), r.subregister)
+	var s pubsub.Subscription
+	s, err = r.opts.pubsub.Sub(r.buildMessage("register", service), r.subregister)
 	if err != nil {
-		return err
+		return
 	}
 	r.subscriptions = append(r.subscriptions, s)
 	s, err = r.opts.pubsub.Sub(r.buildMessage("unregister", service), r.subunregister)
 	if err != nil {
-		return err
+		return
 	}
 	r.subscriptions = append(r.subscriptions, s)
-	return nil
+	return
 }
 
 //Close unregister to all subscriptions.

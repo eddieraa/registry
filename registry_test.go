@@ -103,6 +103,7 @@ func TestRegWithDefaultInstance(t *testing.T) {
 }
 
 func TestWithLB(t *testing.T) {
+	reset()
 	r, err := NewRegistry(WithPubsub(pb))
 	assert.Nil(t, err)
 	err = r.Observe("myservice")
@@ -115,7 +116,7 @@ func TestWithLB(t *testing.T) {
 	go launchSubscriber(chstop, "myservice", "15")
 	go launchSubscriber(chstop, "myservice", "16")
 	go launchSubscriber(chstop, "myservice", "17")
-	<-time.NewTimer(time.Millisecond * 50).C
+	<-time.NewTimer(time.Millisecond * 100).C
 	services, err := r.GetServices("myservice")
 	assert.Equal(t, 7, len(services))
 	assert.Nil(t, err)
@@ -439,6 +440,10 @@ func TestFindFreePort(t *testing.T) {
 func reset() {
 	Close()
 	test.GetServer().Resume()
+	debug := pb.(test.Debug)
+
+	debug.CallbackPub(nil)
+	debug.CallbackSub(nil)
 }
 func TestOptsTimeout(t *testing.T) {
 	reset()
@@ -460,6 +465,7 @@ func TestAddObserveFilter(t *testing.T) {
 		if strings.HasPrefix(p.Address, "localhost:") {
 			res = true
 		}
+		logrus.Debug("filter ", p.Address, " res ", res)
 		return
 	}
 	SetDefault(WithPubsub(pb), AddObserveFilter(of))
@@ -469,7 +475,7 @@ func TestAddObserveFilter(t *testing.T) {
 	go launchSubscriber(ch, "of.s1", "10.10.1.11:43")
 	go launchSubscriber(ch, "of.s3", "10.10.1.11:43")
 	Observe("of.s1")
-	<-time.NewTimer(50 * time.Millisecond).C
+	<-time.NewTimer(500 * time.Millisecond).C
 	services, _ := GetServices("of.s1")
 	assert.Equal(t, 2, len(services))
 	close(ch)
@@ -514,4 +520,41 @@ func TestConcurrentAccessToRegisterdServices(t *testing.T) {
 	<-time.NewTimer(100 * time.Millisecond).C
 	close(ch)
 	Close()
+}
+
+func TestMarshal(t *testing.T) {
+	pb.(test.Debug).CallbackPub(func(s string, b []byte) ([]byte, error) {
+		return []byte("titi toto"), nil
+	})
+	SetDefault(WithPubsub(pb))
+	ch := make(chan interface{})
+	go launchSubscriber(ch, "test", "localhost:43")
+
+	s, err := GetService("test")
+	assert.Nil(t, s)
+	assert.NotNil(t, err)
+
+	close(ch)
+	reset()
+}
+
+func TestLocalhostOFilter(t *testing.T) {
+	reset()
+	SetDefault(WithPubsub(pb), AddObserveFilter(LocalhostOFilter()))
+	ch := make(chan interface{})
+	go launchSubscriber(ch, "test", "43")
+
+	s, err := GetService("test")
+	close(ch)
+	assert.Nil(t, err)
+	assert.NotNil(t, s)
+	<-time.NewTimer(50 * time.Millisecond).C
+	s, err = GetService("test")
+	assert.NotNil(t, err)
+	assert.Nil(t, s)
+	ch = make(chan interface{})
+	go launchSubscriber(ch, "test", "10.1.10.4:43")
+	s, err = GetService("test")
+	assert.NotNil(t, err)
+	assert.Nil(t, s)
 }

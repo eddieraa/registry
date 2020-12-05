@@ -16,10 +16,17 @@ type Filter func(services []*Pong) []*Pong
 //Ex: you want only service on same host
 type ObserveFilter func(s *Pong) bool
 
+func hostname() string {
+	host, err := os.Hostname()
+	if err != nil {
+		logrus.Error("Unable to get local hostname: ", err.Error())
+	}
+	return host
+}
+
 //LocalhostFilter return true if hostname is equals to service host
 func LocalhostFilter() Filter {
-	var host string
-	host, _ = os.Hostname()
+	host := hostname()
 
 	fn := func(services []*Pong) []*Pong {
 		res := []*Pong{}
@@ -54,10 +61,8 @@ func LoadBalanceFilter() Filter {
 
 //LocalhostOFilter accept only service on the same machine
 func LocalhostOFilter() ObserveFilter {
-	name, err := os.Hostname()
-	if err != nil {
-		logrus.Error("Unable to get local hostname: ", err.Error())
-	}
+	name := hostname()
+
 	return func(p *Pong) bool {
 		if name == p.Host {
 			return true

@@ -1,11 +1,9 @@
 package registry
 
 import (
-	"os"
 	"time"
 
 	"github.com/eddieraa/registry/pubsub"
-	"github.com/sirupsen/logrus"
 )
 
 //Option option func
@@ -48,7 +46,6 @@ var (
 */
 
 func newOptions(opts ...Option) Options {
-	var err error
 	options := Options{
 		timeout:           DefaultTimeout,
 		registerInterval:  DefaultRegisterInterval,
@@ -58,9 +55,7 @@ func newOptions(opts ...Option) Options {
 		filters:           make([]Filter, 0),
 		observeFilters:    make([]ObserveFilter, 0),
 	}
-	if options.hostname, err = os.Hostname(); err != nil {
-		logrus.Error("could not get hostname ", err)
-	}
+	options.hostname = hostname()
 	for _, o := range opts {
 		o(&options)
 	}
