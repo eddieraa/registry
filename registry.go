@@ -401,42 +401,32 @@ func (r *reg) getinternalService(name string, serviceFilters ...Filter) (service
 	r.observers[name] = observe
 
 	observe.callback = func(p *Pong) {
-		ok := true
-		arg := []*Pong{p}
-		for _, f := range filters {
-			if filtered := f(arg); filtered == nil || len(filtered) == 0 {
-				ok = false
-			}
-		}
-		if ok {
+		if filtered := chainFilters([]*Pong{p}, filters...); filtered != nil && len(filtered) > 0 {
 			observe.callback = nil
 			ch <- &p.Service
 		}
 	}
 
 	r.Observe(name)
-	err = r.opts.pubsub.Pub(r.buildMessage("ping", name), nil)
-	if err != nil {
-		return nil, err
+	if err = r.opts.pubsub.Pub(r.buildMessage("ping", name), nil); err == nil {
+		//create timeout if no service available
+		var serviceFound *Service
+		tk := time.NewTimer(r.opts.timeout)
+		select {
+		case <-tk.C:
+			break
+		case serviceFound = <-ch:
+			close(ch)
+			break
+		}
+		tk.Stop()
+		if serviceFound != nil {
+			services = []Service{*serviceFound}
+		} else {
+			err = ErrNotFound
+		}
 	}
-
-	//create timeout if no service available
-	var serviceFound *Service
-	tk := time.NewTimer(r.opts.timeout)
-	select {
-	case <-tk.C:
-		break
-	case serviceFound = <-ch:
-		close(ch)
-		break
-	}
-	tk.Stop()
-	if serviceFound != nil {
-		return []Service{*serviceFound}, nil
-	}
-
-	return nil, ErrNotFound
-
+	return
 }
 
 func (r *reg) GetServices(name string) ([]Service, error) {

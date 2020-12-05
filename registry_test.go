@@ -66,10 +66,13 @@ func TestChainFilter(t *testing.T) {
 func launchSubscriber(chstop chan interface{}, name string, addr string) {
 	reg, _ := NewRegistry(WithPubsub(pb), RegisterInterval(500*time.Millisecond))
 	myaddr := addr
-	if !strings.Contains(addr, ":") {
+	host := ""
+	if strings.Contains(addr, ":") {
+		host = strings.Split(addr, ":")[0]
+	} else {
 		myaddr = fmt.Sprint("localhost:", addr)
 	}
-	s := Service{Name: name, Address: myaddr}
+	s := Service{Name: name, Address: myaddr, Host: host}
 	fn, _ := reg.Register(s)
 	<-chstop
 	if fn != nil {
@@ -240,6 +243,32 @@ func TestCheckDueTime(t *testing.T) {
 	close(chstop)
 	Close()
 
+}
+
+func TestFilters(t *testing.T) {
+	//test chainFilter
+	name := "testfilter"
+	pongs := []*Pong{
+		newService("10.11.11.10:3434", "10.11.11.10", name),
+		newService("10.11.11.10:3435", "10.11.11.10", name),
+		newService("10.11.11.10:3436", "10.11.11.10", name),
+		newService("10.11.11.11:3434", "10.11.11.10", name),
+		newService("10.11.11.12:3434", "10.11.11.10", name),
+		newService("10.11.11.13:3434", "10.11.11.10", name),
+	}
+	ser := chainFilters(pongs, LocalhostFilter())
+	assert.NotNil(t, ser)
+	assert.Empty(t, ser)
+	reset()
+
+	chstop := make(chan interface{})
+	go launchSubscriber(chstop, name, "10.11.1.11:5454")
+	go launchSubscriber(chstop, name, "10.11.1.12:5454")
+	SetDefault(WithPubsub(pb), AddFilter(LocalhostFilter()))
+	services, err := GetService(name)
+	assert.Nil(t, services)
+	assert.Equal(t, ErrNotFound, err)
+	close(chstop)
 }
 
 func TestPersoFilter(t *testing.T) {
