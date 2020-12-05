@@ -86,7 +86,8 @@ type reg struct {
 	opts      Options
 
 	//manage Registered service
-	registeredServices map[string]*Pong
+	//registeredServices    map[string]*Pong
+	registeredServicesMap sync.Map
 
 	//used to stop go routine registerServiceInContinue
 	chStopChannelRegisteredServices chan bool
@@ -110,7 +111,7 @@ var (
 	mu       sync.Mutex
 )
 
-func (r reg) buildMessage(message, service string) string {
+func (r *reg) buildMessage(message, service string) string {
 	var b strings.Builder
 	b.WriteString(r.opts.mainTopic)
 	b.WriteString(".")
@@ -132,7 +133,7 @@ func (p Pong) String() string {
 	return fmt.Sprintf("%s timestamp %d, %d", p.Name, p.Timestamps.Registered, p.Timestamps.Duration)
 }
 
-func (r reg) subToPing(p *Pong) error {
+func (r *reg) subToPing(p *Pong) error {
 	log.Info("Sub to ping for service ", p.Name, " ", p.Address)
 	fn := func(m *pubsub.PubsubMsg) {
 		r.pubregister(p)
@@ -146,7 +147,7 @@ func (r reg) subToPing(p *Pong) error {
 	return nil
 }
 
-func (r reg) Register(s Service) (f FnUnregister, err error) {
+func (r *reg) Register(s Service) (f FnUnregister, err error) {
 	if s.Host == "" {
 		s.Host = r.opts.hostname
 	}
@@ -155,7 +156,7 @@ func (r reg) Register(s Service) (f FnUnregister, err error) {
 		return
 	}
 
-	r.registeredServices[s.Name+s.Address] = p
+	r.registeredServicesMap.Store(s.Name+s.Address, p)
 	//notify the channel to send new message
 	r.chFiredRegisteredService <- p
 	f = func() {
@@ -165,7 +166,7 @@ func (r reg) Register(s Service) (f FnUnregister, err error) {
 
 }
 
-func (r reg) Subscribers() []string {
+func (r *reg) Subscribers() []string {
 	res := []string{}
 	for k := range r.observers {
 		if !strings.HasSuffix(k, "*") {
@@ -175,7 +176,7 @@ func (r reg) Subscribers() []string {
 	return res
 }
 
-func (r reg) pubregister(p *Pong) (err error) {
+func (r *reg) pubregister(p *Pong) (err error) {
 	var data []byte
 	p.Timestamps.Registered = time.Now().UnixNano() / 1000000
 	data, err = json.Marshal(p)
@@ -190,7 +191,7 @@ func (r reg) pubregister(p *Pong) (err error) {
 	return
 }
 
-func (r reg) registerServiceInContinue() {
+func (r *reg) registerServiceInContinue() {
 	log.Infof("Start go routine for register services every %s ", r.opts.registerInterval)
 	tk := time.NewTicker(r.opts.registerInterval)
 	tkDue := time.NewTicker(r.opts.checkDueTime)
@@ -201,9 +202,10 @@ stop:
 			log.Info("Receive stop in channel")
 			break stop
 		case <-tk.C:
-			for _, pong := range r.registeredServices {
-				r.pubregister(pong)
-			}
+			r.registeredServicesMap.Range(func(k, v interface{}) bool {
+				r.pubregister(v.(*Pong))
+				return true
+			})
 		case pong := <-r.chFiredRegisteredService:
 			r.pubregister(pong)
 		case <-tkDue.C:
@@ -215,7 +217,7 @@ stop:
 	log.Info("Stop go routine registerSerivceInContinue")
 }
 
-func (r reg) checkDueTime() {
+func (r *reg) checkDueTime() {
 	toDel := []*Pong{}
 	now := time.Now().Local()
 	r.ser.IterateAll(func(key string, s *Pong) bool {
@@ -235,16 +237,14 @@ func (r reg) checkDueTime() {
 	}
 }
 
-func (r reg) Unregister(s Service) (err error) {
+func (r *reg) Unregister(s Service) (err error) {
 	var data []byte
 	var topic string
 	data, err = json.Marshal(s)
 	if err == nil {
 		topic = r.buildMessage("unregister", s.Name)
 		err = r.opts.pubsub.Pub(topic, data)
-		if r.registeredServices != nil {
-			delete(r.registeredServices, s.Name+s.Address)
-		}
+		r.registeredServicesMap.Delete(s.Name + s.Address)
 		log.Infof("%s (%s) host: %s", topic, s.Address, s.Host)
 	}
 	return
@@ -257,7 +257,6 @@ func NewRegistry(opts ...Option) (r Registry, err error) {
 		ser:                             newServices(),
 		observers:                       make(map[string]*observe),
 		opts:                            newOptions(opts...),
-		registeredServices:              make(map[string]*Pong),
 		chFiredRegisteredService:        make(chan *Pong),
 		chStopChannelRegisteredServices: make(chan bool),
 		subscriptions:                   make([]pubsub.Subscription, 0),
@@ -351,7 +350,7 @@ func Unregister(s Service) error {
 	return instance.Unregister(s)
 }
 
-func (r reg) GetService(name string, f ...Filter) (*Service, error) {
+func (r *reg) GetService(name string, f ...Filter) (*Service, error) {
 	services, err := r.getinternalService(name, f...)
 	if err != nil {
 		return nil, err
@@ -384,7 +383,7 @@ func chainFilters(pongs []*Pong, filters ...Filter) []Service {
 	return res
 }
 
-func (r reg) getinternalService(name string, serviceFilters ...Filter) ([]Service, error) {
+func (r *reg) getinternalService(name string, serviceFilters ...Filter) ([]Service, error) {
 	filters := serviceFilters
 	if filters == nil {
 		filters = r.opts.filters
@@ -444,11 +443,11 @@ func (r reg) getinternalService(name string, serviceFilters ...Filter) ([]Servic
 
 }
 
-func (r reg) GetServices(name string) ([]Service, error) {
+func (r *reg) GetServices(name string) ([]Service, error) {
 	return r.getinternalService(name)
 }
 
-func (r reg) subregister(msg *pubsub.PubsubMsg) {
+func (r *reg) subregister(msg *pubsub.PubsubMsg) {
 	var p *Pong
 	err := json.Unmarshal(msg.Data, &p)
 	if err != nil {
@@ -480,7 +479,7 @@ func (r reg) subregister(msg *pubsub.PubsubMsg) {
 
 }
 
-func (r reg) subunregister(msg *pubsub.PubsubMsg) {
+func (r *reg) subunregister(msg *pubsub.PubsubMsg) {
 	var s Service
 	err := json.Unmarshal(msg.Data, &s)
 	if err != nil {
@@ -500,7 +499,7 @@ func (r reg) subunregister(msg *pubsub.PubsubMsg) {
 	log.Debugf("Unregister service %s/%s", s.Name, s.Address)
 }
 
-func (r reg) Observe(service string) error {
+func (r *reg) Observe(service string) error {
 	if _, ok := r.observers[service]; !ok {
 		r.observers[service] = &observe{}
 	}
@@ -521,11 +520,13 @@ func (r reg) Observe(service string) error {
 //Clear local cache.
 //Stop go routine if exist.
 //TODO
-func (r reg) Close() (err error) {
+func (r *reg) Close() (err error) {
 	r.chStopChannelRegisteredServices <- true
-	for _, s := range r.registeredServices {
-		r.Unregister(s.Service)
-	}
+	r.registeredServicesMap.Range(func(k, v interface{}) bool {
+		r.Unregister(v.(*Pong).Service)
+		return true
+	})
+
 	for _, s := range r.subscriptions {
 		s.Unsub()
 	}
