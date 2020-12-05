@@ -112,7 +112,7 @@ func TestWithLB(t *testing.T) {
 	go launchSubscriber(chstop, "myservice", "15")
 	go launchSubscriber(chstop, "myservice", "16")
 	go launchSubscriber(chstop, "myservice", "17")
-	<-time.NewTimer(time.Millisecond * 100).C
+	<-time.NewTimer(time.Millisecond * 50).C
 	services, err := r.GetServices("myservice")
 	assert.Equal(t, 7, len(services))
 	assert.Nil(t, err)
@@ -301,7 +301,7 @@ func TestDueTime(t *testing.T) {
 	reset()
 	service := "service-checkduetime"
 	test.GetServer().Resume()
-	SetDefault(WithPubsub(pb), RegisterInterval(20*time.Millisecond))
+	SetDefault(WithPubsub(pb), RegisterInterval(20*time.Millisecond), Timeout(60*time.Millisecond))
 	ch := make(chan interface{})
 	go launchSubscriber(ch, service, "h:43")
 	s, _ := GetService(service)
@@ -313,6 +313,7 @@ func TestDueTime(t *testing.T) {
 	assert.Nil(t, s)
 
 	close(ch)
+	reset()
 }
 
 func TestMainTopic(t *testing.T) {
@@ -439,7 +440,7 @@ func TestAddObserveFilter(t *testing.T) {
 	go launchSubscriber(ch, "of.s1", "10.10.1.11:43")
 	go launchSubscriber(ch, "of.s3", "10.10.1.11:43")
 	Observe("of.s1")
-	<-time.NewTimer(100 * time.Millisecond).C
+	<-time.NewTimer(50 * time.Millisecond).C
 	services, _ := GetServices("of.s1")
 	assert.Equal(t, 2, len(services))
 	close(ch)
@@ -449,4 +450,39 @@ func TestLocalFreeIPv6Addr(t *testing.T) {
 	add, err := LocalFreeIPv6Addr()
 	assert.Nil(t, err)
 	assert.NotNil(t, add)
+}
+
+func TestConcurrentAccessToRegisterdServices(t *testing.T) {
+	reset()
+	SetDefault(WithPubsub(pb), RegisterInterval(time.Millisecond*1))
+	count := 0
+	ch := make(chan bool)
+	registerFn := func() {
+		count++
+		serviceName := fmt.Sprint("sreg", count)
+		Register(Service{Name: serviceName, Address: "localhost:2134"})
+		<-ch
+	}
+	registry, _ := GetDefault()
+	r := registry.(*reg)
+	for n := 0; n < 10; n++ {
+		go r.registerServiceInContinue()
+
+	}
+
+	count2 := 0
+	unRegisterFn := func() {
+		count2++
+		serviceName := fmt.Sprint("sreg", count2)
+		Unregister(Service{Name: serviceName, Address: "localhost:2134"})
+		<-ch
+	}
+	for n := 0; n < 50; n++ {
+		go registerFn()
+		go unRegisterFn()
+
+	}
+	<-time.NewTimer(100 * time.Millisecond).C
+	close(ch)
+	Close()
 }
