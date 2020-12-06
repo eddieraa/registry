@@ -17,19 +17,19 @@ func newFps(name string) func(*pubsub.PubsubMsg) {
 
 func Test1(t *testing.T) {
 	s := newFakemap()
-	c1 := &cli{1, nil}
+	c1 := &cli{1, nil, nil, nil}
 	s.add("test", c1, newFps("c1"))
-	c2 := &cli{2, nil}
+	c2 := &cli{2, nil, nil, nil}
 	s.add("test", c2, newFps("c2"))
 
 	assert.Equal(t, 2, len(s.get("test")))
 	s.add("test", c2, newFps("c2"))
 	assert.Equal(t, 2, len(s.get("test")))
 
-	s.add("test", &cli{2, nil}, newFps("cx"))
+	s.add("test", &cli{2, nil, nil, nil}, newFps("cx"))
 	assert.Equal(t, 2, len(s.get("test")))
 
-	s.add("test", &cli{3, nil}, newFps("cx"))
+	s.add("test", &cli{3, nil, nil, nil}, newFps("cx"))
 	assert.Equal(t, 3, len(s.get("test")))
 }
 
@@ -65,7 +65,7 @@ func launchFakeService(t *testing.T) {
 
 func TestRegistry(t *testing.T) {
 	pb := NewPubSub()
-	registry.SetDefaultInstance(registry.WithPubsub(pb))
+	registry.SetDefault(registry.WithPubsub(pb))
 	go launchFakeService(t)
 	s, err := registry.GetService("test")
 	assert.Nil(t, err)

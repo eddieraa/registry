@@ -46,6 +46,22 @@ func TestLoadOrStore(t *testing.T) {
 	assert.Equal(t, int64(2000), service.Timestamps.Registered)
 }
 
+func TestRebuildCache(t *testing.T) {
+	s := newServices()
+	s.LoadOrStore(pong("service1", "localhost:4334"))
+	s.LoadOrStore(pong("service1", "localhost:4335"))
+	pongs := s.GetServices("service1")
+	pongs = append(pongs, pong("service1", "localhost:4336"))
+	s.getCache()["services1"] = pongs
+	s.getCache()["services2"] = pongs
+	assert.Equal(t, 3, len(pongs))
+	s.rebuildCache("")
+	pongs = s.GetServices("service1")
+	assert.Equal(t, 2, len(pongs))
+	pongs = s.GetServices("service2")
+	assert.Nil(t, pongs)
+}
+
 func TestRebuildTestInParallele(t *testing.T) {
 	s := newServices()
 	store := func() {

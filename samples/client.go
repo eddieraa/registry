@@ -27,7 +27,7 @@ func main() {
 	if err != nil {
 		logrus.Fatal("could not connect to nats ", err)
 	}
-	reg, err := registry.SetDefaultInstance(pb.Nats(conn), registry.AddFilter(registry.LoadBalanceFilter()))
+	reg, err := registry.SetDefault(pb.Nats(conn), registry.AddFilter(registry.LoadBalanceFilter()))
 	if err != nil {
 		logrus.Fatal("could not connect to nats ", err)
 	}

@@ -19,6 +19,7 @@ type Registry interface {
 	GetServices(name string) ([]Service, error)
 	GetService(name string, filters ...Filter) (*Service, error)
 	Observe(serviceName string) error
+	Subscribers() []string
 	Close() error
 }
 
@@ -85,7 +86,8 @@ type reg struct {
 	opts      Options
 
 	//manage Registered service
-	registeredServices map[string]*Pong
+	//registeredServices    map[string]*Pong
+	registeredServicesMap sync.Map
 
 	//used to stop go routine registerServiceInContinue
 	chStopChannelRegisteredServices chan bool
@@ -103,13 +105,13 @@ var (
 	//ErrNotFound when no service found
 	ErrNotFound = errors.New("No service found")
 	//ErrNoDefaultInstance when intance singleton has not been set
-	ErrNoDefaultInstance = errors.New("Default instance has not been set, call SetDefaultInstance before")
+	ErrNoDefaultInstance = errors.New("Default instance has not been set, call SetDefault before")
 	//singleton instance
 	instance *reg
 	mu       sync.Mutex
 )
 
-func (r reg) buildMessage(message, service string) string {
+func (r *reg) buildMessage(message, service string) string {
 	var b strings.Builder
 	b.WriteString(r.opts.mainTopic)
 	b.WriteString(".")
@@ -131,7 +133,7 @@ func (p Pong) String() string {
 	return fmt.Sprintf("%s timestamp %d, %d", p.Name, p.Timestamps.Registered, p.Timestamps.Duration)
 }
 
-func (r reg) subToPing(p *Pong) error {
+func (r *reg) subToPing(p *Pong) error {
 	log.Info("Sub to ping for service ", p.Name, " ", p.Address)
 	fn := func(m *pubsub.PubsubMsg) {
 		r.pubregister(p)
@@ -145,7 +147,7 @@ func (r reg) subToPing(p *Pong) error {
 	return nil
 }
 
-func (r reg) Register(s Service) (f FnUnregister, err error) {
+func (r *reg) Register(s Service) (f FnUnregister, err error) {
 	if s.Host == "" {
 		s.Host = r.opts.hostname
 	}
@@ -154,7 +156,7 @@ func (r reg) Register(s Service) (f FnUnregister, err error) {
 		return
 	}
 
-	r.registeredServices[s.Name+s.Address] = p
+	r.registeredServicesMap.Store(s.Name+s.Address, p)
 	//notify the channel to send new message
 	r.chFiredRegisteredService <- p
 	f = func() {
@@ -164,23 +166,32 @@ func (r reg) Register(s Service) (f FnUnregister, err error) {
 
 }
 
-func (r reg) pubregister(p *Pong) (err error) {
+func (r *reg) Subscribers() []string {
+	res := []string{}
+	for k := range r.observers {
+		if !strings.HasSuffix(k, "*") {
+			res = append(res, k)
+		}
+	}
+	return res
+}
+
+func (r *reg) pubregister(p *Pong) (err error) {
 	var data []byte
 	p.Timestamps.Registered = time.Now().UnixNano() / 1000000
-	if data, err = json.Marshal(p); err != nil {
-		log.Error("publish register failed unmarshal service ", p.Name, " :", err)
-		return
+	data, err = json.Marshal(p)
+	if err == nil {
+		topic := r.buildMessage("register", p.Name)
+		if err = r.opts.pubsub.Pub(topic, data); err != nil {
+			log.Error("publish register failed for service ", p.Name, " :", err)
+			return
+		}
+		log.Debugf("%s (%s) host: %s", topic, p.Address, p.Host)
 	}
-	topic := r.buildMessage("register", p.Name)
-	if err = r.opts.pubsub.Pub(topic, data); err != nil {
-		log.Error("publish register failed for service ", p.Name, " :", err)
-		return
-	}
-	log.Debugf("%s (%s) host: %s", topic, p.Address, p.Host)
 	return
 }
 
-func (r reg) registerServiceInContinue() {
+func (r *reg) registerServiceInContinue() {
 	log.Infof("Start go routine for register services every %s ", r.opts.registerInterval)
 	tk := time.NewTicker(r.opts.registerInterval)
 	tkDue := time.NewTicker(r.opts.checkDueTime)
@@ -191,9 +202,10 @@ stop:
 			log.Info("Receive stop in channel")
 			break stop
 		case <-tk.C:
-			for _, pong := range r.registeredServices {
-				r.pubregister(pong)
-			}
+			r.registeredServicesMap.Range(func(k, v interface{}) bool {
+				r.pubregister(v.(*Pong))
+				return true
+			})
 		case pong := <-r.chFiredRegisteredService:
 			r.pubregister(pong)
 		case <-tkDue.C:
@@ -205,7 +217,7 @@ stop:
 	log.Info("Stop go routine registerSerivceInContinue")
 }
 
-func (r reg) checkDueTime() {
+func (r *reg) checkDueTime() {
 	toDel := []*Pong{}
 	now := time.Now().Local()
 	r.ser.IterateAll(func(key string, s *Pong) bool {
@@ -225,17 +237,16 @@ func (r reg) checkDueTime() {
 	}
 }
 
-func (r reg) Unregister(s Service) (err error) {
+func (r *reg) Unregister(s Service) (err error) {
 	var data []byte
-	if data, err = json.Marshal(s); err != nil {
-		return
+	var topic string
+	data, err = json.Marshal(s)
+	if err == nil {
+		topic = r.buildMessage("unregister", s.Name)
+		err = r.opts.pubsub.Pub(topic, data)
+		r.registeredServicesMap.Delete(s.Name + s.Address)
+		log.Infof("%s (%s) host: %s", topic, s.Address, s.Host)
 	}
-	topic := r.buildMessage("unregister", s.Name)
-	err = r.opts.pubsub.Pub(topic, data)
-	if r.registeredServices != nil {
-		delete(r.registeredServices, s.Name+s.Address)
-	}
-	log.Infof("%s (%s) host: %s", topic, s.Address, s.Host)
 	return
 
 }
@@ -246,7 +257,6 @@ func NewRegistry(opts ...Option) (r Registry, err error) {
 		ser:                             newServices(),
 		observers:                       make(map[string]*observe),
 		opts:                            newOptions(opts...),
-		registeredServices:              make(map[string]*Pong),
 		chFiredRegisteredService:        make(chan *Pong),
 		chStopChannelRegisteredServices: make(chan bool),
 		subscriptions:                   make([]pubsub.Subscription, 0),
@@ -255,10 +265,10 @@ func NewRegistry(opts ...Option) (r Registry, err error) {
 	return r, err
 }
 
-//SetDefaultInstance set the default instance
+//SetDefault set the default instance
 //
 // ex pubsub transport
-func SetDefaultInstance(opts ...Option) (r Registry, err error) {
+func SetDefault(opts ...Option) (r Registry, err error) {
 	mu.Lock()
 	defer mu.Unlock()
 	if instance == nil {
@@ -267,13 +277,20 @@ func SetDefaultInstance(opts ...Option) (r Registry, err error) {
 			instance = r.(*reg)
 		}
 	}
-
 	return
+}
+
+//GetDefault return default instance. return err if no default instance had been set
+func GetDefault() (r Registry, err error) {
+	if instance == nil {
+		return nil, ErrNoDefaultInstance
+	}
+	return instance, nil
 }
 
 //GetService find service with service name
 //
-//Call SetDefaultInstance before use
+//Call SetDefault before use
 func GetService(name string, f ...Filter) (*Service, error) {
 	if instance == nil {
 		return nil, ErrNoDefaultInstance
@@ -283,17 +300,19 @@ func GetService(name string, f ...Filter) (*Service, error) {
 
 //Close the registry instance
 //
-//Call SetDefaultInstance before
+//Call SetDefault before
 func Close() error {
 	if instance == nil {
 		return ErrNoDefaultInstance
 	}
-	return instance.Close()
+	err := instance.Close()
+	instance = nil
+	return err
 }
 
 //GetServices return all registered service
 //
-//Call SetDefaultInstance before use
+//Call SetDefault before use
 func GetServices(name string) ([]Service, error) {
 	if instance == nil {
 		return nil, ErrNoDefaultInstance
@@ -303,7 +322,7 @@ func GetServices(name string) ([]Service, error) {
 
 //Observe subscribe to service
 //
-//Call SetDefaultInstance before use
+//Call SetDefault before use
 func Observe(name string) error {
 	if instance == nil {
 		return ErrNoDefaultInstance
@@ -313,7 +332,7 @@ func Observe(name string) error {
 
 //Register register a new service
 //
-//Call SetDefaultInstance before use
+//Call SetDefault before use
 func Register(s Service) (FnUnregister, error) {
 	if instance == nil {
 		return nil, ErrNoDefaultInstance
@@ -323,7 +342,7 @@ func Register(s Service) (FnUnregister, error) {
 
 //Unregister unregister a service
 //
-//Call SetDefaultInstance before use
+//Call SetDefault before use
 func Unregister(s Service) error {
 	if instance == nil {
 		return ErrNoDefaultInstance
@@ -331,7 +350,7 @@ func Unregister(s Service) error {
 	return instance.Unregister(s)
 }
 
-func (r reg) GetService(name string, f ...Filter) (*Service, error) {
+func (r *reg) GetService(name string, f ...Filter) (*Service, error) {
 	services, err := r.getinternalService(name, f...)
 	if err != nil {
 		return nil, err
@@ -364,7 +383,7 @@ func chainFilters(pongs []*Pong, filters ...Filter) []Service {
 	return res
 }
 
-func (r reg) getinternalService(name string, serviceFilters ...Filter) ([]Service, error) {
+func (r *reg) getinternalService(name string, serviceFilters ...Filter) (services []Service, err error) {
 	filters := serviceFilters
 	if filters == nil {
 		filters = r.opts.filters
@@ -380,55 +399,41 @@ func (r reg) getinternalService(name string, serviceFilters ...Filter) ([]Servic
 	ch := make(chan *Service)
 	observe := &observe{}
 	r.observers[name] = observe
-	if filters != nil {
-		observe.callback = func(p *Pong) {
-			ok := true
-			arg := []*Pong{p}
-			for _, f := range filters {
-				if filtered := f(arg); filtered == nil || len(filtered) == 0 {
-					ok = false
-				}
-			}
-			if ok {
-				observe.callback = nil
-				ch <- &p.Service
-			}
-		}
-	} else {
-		observe.callback = func(p *Pong) {
+
+	observe.callback = func(p *Pong) {
+		if filtered := chainFilters([]*Pong{p}, filters...); filtered != nil && len(filtered) > 0 {
 			observe.callback = nil
 			ch <- &p.Service
 		}
 	}
+
 	r.Observe(name)
-	err := r.opts.pubsub.Pub(r.buildMessage("ping", name), nil)
-	if err != nil {
-		return nil, err
+	if err = r.opts.pubsub.Pub(r.buildMessage("ping", name), nil); err == nil {
+		//create timeout if no service available
+		var serviceFound *Service
+		tk := time.NewTimer(r.opts.timeout)
+		select {
+		case <-tk.C:
+			break
+		case serviceFound = <-ch:
+			close(ch)
+			break
+		}
+		tk.Stop()
+		if serviceFound != nil {
+			services = []Service{*serviceFound}
+		} else {
+			err = ErrNotFound
+		}
 	}
-
-	//create timeout if no service available
-	var serviceFound *Service
-	tk := time.NewTimer(r.opts.timeout)
-	select {
-	case <-tk.C:
-		break
-	case serviceFound = <-ch:
-		close(ch)
-		break
-	}
-	if serviceFound != nil {
-		return []Service{*serviceFound}, nil
-	}
-	tk.Stop()
-	return nil, ErrNotFound
-
+	return
 }
 
-func (r reg) GetServices(name string) ([]Service, error) {
+func (r *reg) GetServices(name string) ([]Service, error) {
 	return r.getinternalService(name)
 }
 
-func (r reg) subregister(msg *pubsub.PubsubMsg) {
+func (r *reg) subregister(msg *pubsub.PubsubMsg) {
 	var p *Pong
 	err := json.Unmarshal(msg.Data, &p)
 	if err != nil {
@@ -460,7 +465,7 @@ func (r reg) subregister(msg *pubsub.PubsubMsg) {
 
 }
 
-func (r reg) subunregister(msg *pubsub.PubsubMsg) {
+func (r *reg) subunregister(msg *pubsub.PubsubMsg) {
 	var s Service
 	err := json.Unmarshal(msg.Data, &s)
 	if err != nil {
@@ -480,32 +485,33 @@ func (r reg) subunregister(msg *pubsub.PubsubMsg) {
 	log.Debugf("Unregister service %s/%s", s.Name, s.Address)
 }
 
-func (r reg) Observe(service string) error {
+func (r *reg) Observe(service string) (err error) {
 	if _, ok := r.observers[service]; !ok {
 		r.observers[service] = &observe{}
 	}
-	s, err := r.opts.pubsub.Sub(r.buildMessage("register", service), r.subregister)
-	if err != nil {
-		return err
+	var s pubsub.Subscription
+	s, err = r.opts.pubsub.Sub(r.buildMessage("register", service), r.subregister)
+	if err == nil {
+		r.subscriptions = append(r.subscriptions, s)
+		s, err = r.opts.pubsub.Sub(r.buildMessage("unregister", service), r.subunregister)
+		if err == nil {
+			r.subscriptions = append(r.subscriptions, s)
+		}
 	}
-	r.subscriptions = append(r.subscriptions, s)
-	s, err = r.opts.pubsub.Sub(r.buildMessage("unregister", service), r.subunregister)
-	if err != nil {
-		return err
-	}
-	r.subscriptions = append(r.subscriptions, s)
-	return nil
+	return
 }
 
 //Close unregister to all subscriptions.
 //Clear local cache.
 //Stop go routine if exist.
 //TODO
-func (r reg) Close() (err error) {
+func (r *reg) Close() (err error) {
 	r.chStopChannelRegisteredServices <- true
-	for _, s := range r.registeredServices {
-		r.Unregister(s.Service)
-	}
+	r.registeredServicesMap.Range(func(k, v interface{}) bool {
+		r.Unregister(v.(*Pong).Service)
+		return true
+	})
+
 	for _, s := range r.subscriptions {
 		s.Unsub()
 	}

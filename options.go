@@ -1,11 +1,9 @@
 package registry
 
 import (
-	"os"
 	"time"
 
 	"github.com/eddieraa/registry/pubsub"
-	"github.com/sirupsen/logrus"
 )
 
 //Option option func
@@ -38,15 +36,16 @@ var (
 	DefaultDueDurationFactor = float32(1.5)
 )
 
+/*
 //SetFlags set go flags.
 // Call this func if you want to override default parameters with command line argument
-func SetFlags() {
-	//flag.IntVar(&DefaultTimeout, "registry-timeout", 100,"s")
+//func SetFlags() {
+//flag.IntVar(&DefaultTimeout, "registry-timeout", 100,"s")
 
-}
+//}
+*/
 
 func newOptions(opts ...Option) Options {
-	var err error
 	options := Options{
 		timeout:           DefaultTimeout,
 		registerInterval:  DefaultRegisterInterval,
@@ -56,9 +55,7 @@ func newOptions(opts ...Option) Options {
 		filters:           make([]Filter, 0),
 		observeFilters:    make([]ObserveFilter, 0),
 	}
-	if options.hostname, err = os.Hostname(); err != nil {
-		logrus.Error("could not get hostname ", err)
-	}
+	options.hostname = hostname()
 	for _, o := range opts {
 		o(&options)
 	}
