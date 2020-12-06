@@ -16,7 +16,7 @@ func Test1(t *testing.T) {
 	if err != nil {
 		t.Fatal("Could not connect to nats ", err)
 	}
-	_, err = registry.SetDefaultInstance(Nats(c), registry.Timeout(3000*time.Millisecond))
+	_, err = registry.SetDefault(Nats(c), registry.Timeout(3000*time.Millisecond))
 	if err != nil {
 		t.Fatal("Could not open registry session: ", err)
 	}
@@ -66,7 +66,7 @@ func TestLB(t *testing.T) {
 	if err != nil {
 		t.Fatal("Could not connect to nats ", err)
 	}
-	r, err := registry.SetDefaultInstance(Nats(c), registry.Timeout(3000*time.Millisecond), registry.AddFilter(registry.LoadBalanceFilter()))
+	r, err := registry.SetDefault(Nats(c), registry.Timeout(3000*time.Millisecond), registry.AddFilter(registry.LoadBalanceFilter()))
 	if err != nil {
 		t.Fatal("Could not open registry session: ", err)
 	}
@@ -77,7 +77,7 @@ func TestLB(t *testing.T) {
 	logrus.Infof("Service %s", s)
 
 	r.Close()
-	r, err = registry.SetDefaultInstance(Nats(c), registry.Timeout(3000*time.Millisecond), registry.AddFilter(registry.LoadBalanceFilter()))
+	r, err = registry.SetDefault(Nats(c), registry.Timeout(3000*time.Millisecond), registry.AddFilter(registry.LoadBalanceFilter()))
 	if err != nil {
 		t.Fatal("Could not open registry session: ", err)
 	}

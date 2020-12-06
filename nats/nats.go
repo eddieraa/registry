@@ -14,13 +14,13 @@ type subscription struct {
 	s *nats.Subscription
 }
 
-//SetDefaultInstance with a nats connection
-func SetDefaultInstance(c *nats.Conn, opts ...registry.Option) (r registry.Registry, err error) {
+//SetDefault with a nats connection
+func SetDefault(c *nats.Conn, opts ...registry.Option) (r registry.Registry, err error) {
 	options := []registry.Option{Nats(c)}
 	if opts != nil {
 		options = append(options, opts...)
 	}
-	return registry.SetDefaultInstance(options...)
+	return registry.SetDefault(options...)
 }
 
 //NewPub return NATS Pubsub

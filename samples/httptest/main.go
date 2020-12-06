@@ -39,7 +39,7 @@ func main() {
 	if err != nil {
 		panic(fmt.Sprint("Could not connect to nats (", natsURL, "): ", err))
 	}
-	r, err := registry.SetDefaultInstance(pb.Nats(conn))
+	r, err := registry.SetDefault(pb.Nats(conn))
 	if err != nil {
 		panic(fmt.Sprint("Could not create registry ", err))
 	}
