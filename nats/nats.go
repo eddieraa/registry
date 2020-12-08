@@ -14,12 +14,15 @@ type subscription struct {
 	s *nats.Subscription
 }
 
+var log = logrus.New()
+
 //SetDefault with a nats connection
 func SetDefault(c *nats.Conn, opts ...registry.Option) (r registry.Registry, err error) {
 	options := []registry.Option{Nats(c)}
 	if opts != nil {
 		options = append(options, opts...)
 	}
+
 	return registry.SetDefault(options...)
 }
 
@@ -31,7 +34,7 @@ func NewPub(c *nats.Conn) pubsub.Pubsub {
 	return pb
 }
 func (pb *pb) Sub(topic string, f func(m *pubsub.PubsubMsg)) (pubsub.Subscription, error) {
-	logrus.Debug("subscribe to: ", topic)
+	log.Debug("subscribe to: ", topic)
 	subscript, err := pb.c.Subscribe(topic, func(m *nats.Msg) {
 		f(&pubsub.PubsubMsg{Subject: m.Subject, Data: m.Data})
 	})
@@ -39,7 +42,7 @@ func (pb *pb) Sub(topic string, f func(m *pubsub.PubsubMsg)) (pubsub.Subscriptio
 	return s, err
 }
 func (pb *pb) Pub(topic string, data []byte) error {
-	logrus.Debug("publish: ", topic)
+	log.Debug("publish: ", topic)
 	return pb.c.Publish(topic, data)
 }
 
@@ -57,4 +60,9 @@ func (s *subscription) Subject() string {
 //Nats initialyse service registry with nats connection
 func Nats(conn *nats.Conn) registry.Option {
 	return registry.WithPubsub(NewPub(conn))
+}
+
+//SetLogLevel log level
+func SetLogLevel(level logrus.Level) {
+	log.SetLevel(level)
 }

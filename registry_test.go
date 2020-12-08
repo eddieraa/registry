@@ -64,7 +64,7 @@ func TestChainFilter(t *testing.T) {
 }
 
 func launchSubscriber(chstop chan interface{}, name string, addr string) {
-	reg, _ := NewRegistry(WithPubsub(pb), RegisterInterval(500*time.Millisecond))
+	reg, _ := NewRegistry(WithPubsub(pb), WithRegisterInterval(500*time.Millisecond), WithLoglevel(logrus.DebugLevel))
 	myaddr := addr
 	host := ""
 	if strings.Contains(addr, ":") {
@@ -82,7 +82,7 @@ func launchSubscriber(chstop chan interface{}, name string, addr string) {
 }
 
 func TestRegWithDefaultInstance(t *testing.T) {
-	SetDefault(WithPubsub(pb), RegisterInterval(50*time.Millisecond))
+	SetDefault(WithPubsub(pb), WithRegisterInterval(50*time.Millisecond))
 	s, err := GetService("test")
 	assert.Nil(t, s)
 	assert.NotNil(t, err)
@@ -172,7 +172,7 @@ func TestObserveEvent(t *testing.T) {
 		chobs <- ev
 	}
 
-	r, _ := NewRegistry(WithPubsub(pb), SetObserverEvent(ov))
+	r, _ := NewRegistry(WithPubsub(pb), WithObserverEvent(ov))
 	r.Observe("testservice")
 	chstop := make(chan interface{})
 	go launchSubscriber(chstop, "testservice", ":1")
@@ -190,7 +190,7 @@ func TestObserveEventWithDefault(t *testing.T) {
 		chobs <- ev
 	}
 
-	SetDefault(WithPubsub(pb), SetObserverEvent(ov))
+	SetDefault(WithPubsub(pb), WithObserverEvent(ov))
 	Observe("testservice2")
 	chstop := make(chan interface{})
 	go launchSubscriber(chstop, "testservice2", "1")
@@ -203,7 +203,7 @@ func TestObserveEventWithDefault(t *testing.T) {
 }
 
 func launchSubscriber2(chstop chan interface{}, name string, addr string) {
-	reg, _ := NewRegistry(WithPubsub(pb), RegisterInterval(20*time.Millisecond))
+	reg, _ := NewRegistry(WithPubsub(pb), WithRegisterInterval(20*time.Millisecond))
 	s := Service{Name: name, Address: fmt.Sprint("localhost:", addr)}
 	reg.Register(s)
 	<-chstop
@@ -331,7 +331,7 @@ func TestDueTime(t *testing.T) {
 	reset()
 	service := "service-checkduetime"
 	test.GetServer().Resume()
-	SetDefault(WithPubsub(pb), RegisterInterval(20*time.Millisecond), Timeout(60*time.Millisecond))
+	SetDefault(WithPubsub(pb), WithRegisterInterval(20*time.Millisecond), WithTimeout(60*time.Millisecond))
 	ch := make(chan interface{})
 	go launchSubscriber(ch, service, "h:43")
 	s, _ := GetService(service)
@@ -347,7 +347,7 @@ func TestDueTime(t *testing.T) {
 }
 
 func TestMainTopic(t *testing.T) {
-	r, _ := NewRegistry(WithPubsub(pb), MainTopic("maintopic"))
+	r, _ := NewRegistry(WithPubsub(pb), WithMainTopic("maintopic"))
 	assert.Equal(t, "maintopic.toto.titi", r.(*reg).buildMessage("toto", "titi"))
 	r.Close()
 
@@ -448,7 +448,7 @@ func reset() {
 func TestOptsTimeout(t *testing.T) {
 	reset()
 	mypb := test.NewPubSub()
-	r, _ := NewRegistry(WithPubsub(mypb), Timeout(50*time.Millisecond))
+	r, _ := NewRegistry(WithPubsub(mypb), WithTimeout(50*time.Millisecond))
 	now := time.Now()
 	s, err := r.GetService("testtimeout")
 	assert.NotNil(t, err)
@@ -489,7 +489,7 @@ func TestLocalFreeIPv6Addr(t *testing.T) {
 
 func TestConcurrentAccessToRegisterdServices(t *testing.T) {
 	reset()
-	SetDefault(WithPubsub(pb), RegisterInterval(time.Millisecond*1))
+	SetDefault(WithPubsub(pb), WithRegisterInterval(time.Millisecond*1))
 	count := 0
 	ch := make(chan bool)
 	registerFn := func() {
