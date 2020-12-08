@@ -416,7 +416,6 @@ func (r *reg) getinternalService(name string, serviceFilters ...Filter) (service
 		case <-tk.C:
 			break
 		case serviceFound = <-ch:
-			close(ch)
 			break
 		}
 		tk.Stop()
