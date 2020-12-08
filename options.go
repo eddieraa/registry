@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/eddieraa/registry/pubsub"
+	"github.com/sirupsen/logrus"
 )
 
 //Option option func
@@ -21,6 +22,7 @@ type Options struct {
 	dueDurationFactor float32
 	observerEvent     ObserverEvent
 	hostname          string
+	loglevel          logrus.Level
 }
 
 var (
@@ -54,6 +56,7 @@ func newOptions(opts ...Option) Options {
 		dueDurationFactor: DefaultDueDurationFactor,
 		filters:           make([]Filter, 0),
 		observeFilters:    make([]ObserveFilter, 0),
+		loglevel:          logrus.InfoLevel,
 	}
 	options.hostname = hostname()
 	for _, o := range opts {
@@ -69,22 +72,22 @@ func WithPubsub(pb pubsub.Pubsub) Option {
 	}
 }
 
-//Timeout define timeout
-func Timeout(timeout time.Duration) Option {
+//WithTimeout define timeout
+func WithTimeout(timeout time.Duration) Option {
 	return func(opts *Options) {
 		opts.timeout = timeout
 	}
 }
 
-//RegisterInterval time between 2 register publish
-func RegisterInterval(duration time.Duration) Option {
+//WithRegisterInterval time between 2 register publish
+func WithRegisterInterval(duration time.Duration) Option {
 	return func(opts *Options) {
 		opts.registerInterval = duration
 	}
 }
 
-//MainTopic all topic will start with topic. Usefull in multi-tenancy
-func MainTopic(topic string) Option {
+//WithMainTopic all topic will start with topic. Usefull in multi-tenancy
+func WithMainTopic(topic string) Option {
 	return func(opts *Options) {
 		opts.mainTopic = topic
 	}
@@ -104,9 +107,16 @@ func AddObserveFilter(f ObserveFilter) Option {
 	}
 }
 
-//SetObserverEvent set handler for Observer Event
-func SetObserverEvent(ev ObserverEvent) Option {
+//WithObserverEvent set handler for Observer Event
+func WithObserverEvent(ev ObserverEvent) Option {
 	return func(opts *Options) {
 		opts.observerEvent = ev
+	}
+}
+
+//WithLoglevel set log level
+func WithLoglevel(level logrus.Level) Option {
+	return func(opts *Options) {
+		opts.loglevel = level
 	}
 }

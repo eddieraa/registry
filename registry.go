@@ -9,8 +9,10 @@ import (
 	"time"
 
 	"github.com/eddieraa/registry/pubsub"
-	log "github.com/sirupsen/logrus"
+	"github.com/sirupsen/logrus"
 )
+
+var log = logrus.New()
 
 //Registry Register, Unregister
 type Registry interface {
@@ -261,6 +263,7 @@ func NewRegistry(opts ...Option) (r Registry, err error) {
 		chStopChannelRegisteredServices: make(chan bool),
 		subscriptions:                   make([]pubsub.Subscription, 0),
 	}
+	log.SetLevel(r.(*reg).opts.loglevel)
 	go r.(*reg).registerServiceInContinue()
 	return r, err
 }

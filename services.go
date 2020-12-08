@@ -2,8 +2,6 @@ package registry
 
 import (
 	"sync"
-
-	"github.com/sirupsen/logrus"
 )
 
 type services struct {
@@ -24,12 +22,12 @@ func (s *services) Delete(p *Pong) {
 //DeleteByName delete service bye name with key is serviceName+serviceAddress
 func (s *services) DeleteByName(key string) {
 	if v, ok := s.m.Load(key); ok {
-		logrus.Debug("Delete ok ", key)
+		log.Debug("Delete ok ", key)
 		p := v.(*Pong)
 		s.m.Delete(key)
 		s.rebuildCache(p.Name)
 	} else {
-		logrus.Debug("Delete not found ", key)
+		log.Debug("Delete not found ", key)
 	}
 }
 
@@ -91,7 +89,7 @@ func (s *services) nbService(name string) (nb int) {
 	return
 }
 func (s *services) rebuildCache(name string) {
-	logrus.Debug("Rebuild cache for ", name)
+	log.Debug("Rebuild cache for ", name)
 
 	ref := s.getCache()
 	cache := make(map[string][]*Pong)
