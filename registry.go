@@ -69,6 +69,8 @@ type Service struct {
 	Version string `json:"v,omitempty"`
 	//Host
 	Host string `json:"h,omitempty"`
+	//KV key value pair
+	KV map[string]string `json:"kv,omitempty"`
 
 	dueTime time.Time
 }

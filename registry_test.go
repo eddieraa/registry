@@ -202,12 +202,12 @@ func TestObserveEventWithDefault(t *testing.T) {
 	Close()
 }
 
-func launchSubscriber2(chstop chan interface{}, name string, addr string) {
+func launchSubscriber2(chstop chan interface{}, s Service) {
 	reg, _ := NewRegistry(WithPubsub(pb), WithRegisterInterval(20*time.Millisecond))
-	s := Service{Name: name, Address: fmt.Sprint("localhost:", addr)}
+
 	reg.Register(s)
 	<-chstop
-	logrus.Info("STTTTOOPPPPPPPP ", name, "    ", addr)
+	logrus.Info("STTTTOOPPPPPPPP ", s.Name, "    ", s.Address)
 
 	reg.Unregister(s)
 	reg.Close()
@@ -227,16 +227,16 @@ func TestParalleleSetDefaulInstance(t *testing.T) {
 func TestCheckDueTime(t *testing.T) {
 	SetDefault(WithPubsub(pb))
 	chstop := make(chan interface{})
-	go launchSubscriber2(chstop, "checkdutime", "2344")
-	go launchSubscriber2(chstop, "checkdutime", "2345")
-	go launchSubscriber2(chstop, "checkdutime", "2346")
-	go launchSubscriber2(chstop, "checkdutime", "2347")
-	go launchSubscriber2(chstop, "checkdutime", "2348")
-	go launchSubscriber2(chstop, "checkdutime", "2349")
-	go launchSubscriber2(chstop, "checkdutime", "23410")
-	go launchSubscriber2(chstop, "checkdutime", "23411")
-	go launchSubscriber2(chstop, "checkdutime", "23412")
-	go launchSubscriber2(chstop, "checkdutime", "234513")
+	go launchSubscriber(chstop, "checkdutime", "2344")
+	go launchSubscriber(chstop, "checkdutime", "2345")
+	go launchSubscriber(chstop, "checkdutime", "2346")
+	go launchSubscriber(chstop, "checkdutime", "2347")
+	go launchSubscriber(chstop, "checkdutime", "2348")
+	go launchSubscriber(chstop, "checkdutime", "2349")
+	go launchSubscriber(chstop, "checkdutime", "23410")
+	go launchSubscriber(chstop, "checkdutime", "23411")
+	go launchSubscriber(chstop, "checkdutime", "23412")
+	go launchSubscriber(chstop, "checkdutime", "234513")
 	s, _ := GetService("checkdutime")
 	assert.NotNil(t, s)
 	<-time.NewTimer(50 * time.Millisecond).C
@@ -557,4 +557,16 @@ func TestLocalhostOFilter(t *testing.T) {
 	s, err = GetService("test")
 	assert.NotNil(t, err)
 	assert.Nil(t, s)
+}
+
+func TestKV(t *testing.T) {
+	reset()
+	SetDefault(WithPubsub(pb))
+	s := Service{Name: "TestKV", Address: "localhost:234", KV: map[string]string{"toto": "titi", "popo": "ouf"}}
+	chStop := make(chan interface{})
+	go launchSubscriber2(chStop, s)
+	sr, _ := GetService("TestKV")
+	assert.Equal(t, "titi", sr.KV["toto"])
+	close(chStop)
+
 }
