@@ -402,12 +402,16 @@ func (r *reg) getinternalService(name string, serviceFilters ...Filter) (service
 	//register invoke r.Observe(service) with a callback containing a channel
 	//the callback apply filters on service and write in the channel when a service is ok with the filters
 	ch := make(chan *Service)
-	observe := &observe{}
-	r.observers[name] = observe
 
-	observe.callback = func(p *Pong) {
+	obs := r.observers[name]
+	if obs == nil {
+		obs = &observe{}
+		r.observers[name] = obs
+	}
+
+	obs.callback = func(p *Pong) {
 		if filtered := chainFilters([]*Pong{p}, filters...); filtered != nil && len(filtered) > 0 {
-			observe.callback = nil
+			obs.callback = nil
 			ch <- &p.Service
 		}
 	}
