@@ -35,7 +35,7 @@ func main() {
 	if err != nil {
 		logrus.Fatal(err)
 	}
-	r.Register(registry.Service{Name: consul.REGISTRY_NAME})
+	r.Register(registry.Service{Name: consul.REGISTRY_NAME, Address: bindAddress})
 	consul.HandleServices()
 	log.Fatal(http.ListenAndServe(bindAddress, nil))
 }

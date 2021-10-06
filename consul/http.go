@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/sirupsen/logrus"
+	"github.com/eddieraa/registry"
 )
 
 const (
@@ -25,17 +25,23 @@ type CatalogResponse struct {
 	ServiceMeta    map[string]string
 }
 
-func handlerGetServices(baseURL string) http.HandlerFunc {
+func handlerGetServices(reg registry.Registry, baseURL string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		logrus.Info(r.URL.Path[len(baseURL):])
-		services := []*CatalogResponse{}
-		fake := &CatalogResponse{ServiceName: "toto", Address: "xxx", ServicePort: 2343}
-		services = append(services, fake)
-		out, err := json.Marshal(services)
+		serviceName := r.URL.Path[len(baseURL):]
+		services, err := reg.GetServices(serviceName)
 		if err != nil {
-			w.WriteHeader(500)
-			w.Header().Set("Content-Type", "text/plain")
-			w.Write([]byte(fmt.Sprint("Error: ", err.Error())))
+			sendError(w, err)
+			return
+		}
+		resp := []*CatalogResponse{}
+		for _, s := range services {
+			fake := &CatalogResponse{ServiceName: s.Name, Address: s.Host, ServicePort: registry.Port(s)}
+			resp = append(resp, fake)
+		}
+
+		out, err := json.Marshal(resp)
+		if err != nil {
+			sendError(w, err)
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
@@ -44,7 +50,13 @@ func handlerGetServices(baseURL string) http.HandlerFunc {
 
 }
 
-func HandleServices() {
+func sendError(w http.ResponseWriter, err error) {
+	w.WriteHeader(500)
+	w.Header().Set("Content-Type", "text/plain")
+	w.Write([]byte(fmt.Sprint("Error: ", err.Error())))
+}
+
+func HandleServices(r registry.Registry) {
 	baseURL := "/v1/catalog/service/"
-	http.Handle(baseURL, handlerGetServices(baseURL))
+	http.Handle(baseURL, handlerGetServices(r, baseURL))
 }
