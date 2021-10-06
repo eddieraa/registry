@@ -8,6 +8,10 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+const (
+	REGISTRY_NAME = "registry-http-service"
+)
+
 type CatalogResponse struct {
 	ID             string
 	Node           string
@@ -42,5 +46,5 @@ func handlerGetServices(baseURL string) http.HandlerFunc {
 
 func HandleServices() {
 	baseURL := "/v1/catalog/service/"
-	http.HandleFunc(baseURL, handlerGetServices(baseURL))
+	http.Handle(baseURL, handlerGetServices(baseURL))
 }
