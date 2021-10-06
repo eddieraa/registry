@@ -35,8 +35,11 @@ func handlerGetServices(reg registry.Registry, baseURL string) http.HandlerFunc 
 		}
 		resp := []*CatalogResponse{}
 		for _, s := range services {
-			fake := &CatalogResponse{ServiceName: s.Name, Address: s.Host, ServicePort: registry.Port(s)}
-			resp = append(resp, fake)
+			resp = append(resp, &CatalogResponse{
+				ServiceName: s.Name,
+				Address:     s.Host,
+				ServicePort: registry.Port(s),
+			})
 		}
 
 		out, err := json.Marshal(resp)
