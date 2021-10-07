@@ -27,6 +27,7 @@ type CatalogResponse struct {
 
 func handlerGetServices(reg registry.Registry, baseURL string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		format := r.URL.Query().Has("indent")
 		serviceName := r.URL.Path[len(baseURL):]
 		services, err := reg.GetServices(serviceName)
 		if err != nil {
@@ -41,8 +42,13 @@ func handlerGetServices(reg registry.Registry, baseURL string) http.HandlerFunc 
 				ServicePort: registry.Port(s),
 			})
 		}
+		var out []byte
+		if format {
+			out, err = json.MarshalIndent(resp, "", "  ")
+		} else {
+			out, err = json.Marshal(resp)
+		}
 
-		out, err := json.Marshal(resp)
 		if err != nil {
 			sendError(w, err)
 			return
