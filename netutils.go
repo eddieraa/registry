@@ -4,6 +4,8 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"strconv"
+	"strings"
 )
 
 //ErrNoFreePort when no free port is available
@@ -70,5 +72,8 @@ func FindFreeLocalAddress(from, to int) (freeaddr string, err error) {
 //Port extract port from service
 func Port(s Service) int {
 	var port int
+	if pos := strings.LastIndexByte(s.Address, ':'); pos > 0 {
+		port, _ = strconv.Atoi(s.Address[pos+1:])
+	}
 	return port
 }
