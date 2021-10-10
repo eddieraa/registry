@@ -7,8 +7,8 @@ import (
 	"net/http"
 
 	"github.com/eddieraa/registry"
-	"github.com/eddieraa/registry/consul"
 	regnats "github.com/eddieraa/registry/nats"
+	consul "github.com/eddieraa/registry/rest"
 	"github.com/nats-io/nats.go"
 	"github.com/sirupsen/logrus"
 )
@@ -36,6 +36,6 @@ func main() {
 		logrus.Fatal(err)
 	}
 	r.Register(registry.Service{Name: consul.REGISTRY_NAME, Address: bindAddress})
-	consul.HandleServices()
+	consul.HandleServices(r)
 	log.Fatal(http.ListenAndServe(bindAddress, nil))
 }

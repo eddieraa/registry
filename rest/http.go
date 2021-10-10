@@ -1,4 +1,4 @@
-package consul
+package rest
 
 import (
 	"encoding/json"
