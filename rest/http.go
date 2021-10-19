@@ -28,18 +28,29 @@ type CatalogResponse struct {
 func handlerGetServices(reg registry.Registry, baseURL string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		serviceName := r.URL.Path[len(baseURL):]
-		services, err := reg.GetServices(serviceName)
-		if err != nil {
-			sendError(w, err)
-			return
+
+		var serviceNames []string
+		if serviceName == "*" {
+			serviceNames = reg.GetObservedServiceNames()
+		} else {
+			serviceNames = []string{serviceName}
 		}
+
 		resp := []*CatalogResponse{}
-		for _, s := range services {
-			resp = append(resp, &CatalogResponse{
-				ServiceName: s.Name,
-				Address:     s.Host,
-				ServicePort: registry.Port(s),
-			})
+		for _, sn := range serviceNames {
+			services, err := reg.GetServices(sn)
+			if err != nil {
+				sendError(w, err)
+				return
+			}
+
+			for _, s := range services {
+				resp = append(resp, &CatalogResponse{
+					ServiceName: s.Name,
+					Address:     s.Host,
+					ServicePort: registry.Port(s),
+				})
+			}
 		}
 
 		out, err := json.Marshal(resp)

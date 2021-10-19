@@ -19,6 +19,8 @@ var pb = test.NewPubSub()
 
 func init() {
 	logrus.SetFormatter(&logrus.TextFormatter{DisableColors: true})
+	logrus.SetLevel(logrus.ErrorLevel)
+
 	/*
 		conn, err := nats.Connect(nats.DefaultURL)
 		if err != nil {
@@ -569,4 +571,47 @@ func TestKV(t *testing.T) {
 	assert.Equal(t, "titi", sr.KV["toto"])
 	close(chStop)
 
+}
+
+func TestGetObservedServiceNames(t *testing.T) {
+	reset()
+	r, _ := SetDefault(WithPubsub(pb))
+	ch := make(chan interface{})
+	go launchSubscriber(ch, "test1", "43")
+	go launchSubscriber(ch, "test2", "44")
+	go launchSubscriber(ch, "test3", "45")
+	go launchSubscriber(ch, "test1", "45")
+	go launchSubscriber(ch, "test4", "44")
+	go launchSubscriber(ch, "test5", "45")
+	//r.Observe("*")
+	r.GetService("test1")
+	r.GetService("test2")
+	r.GetService("test3")
+	r.GetService("test4")
+	r.GetService("test5")
+	names := r.GetObservedServiceNames()
+	assert.Equal(t, 5, len(names))
+	close(ch)
+}
+
+func TestGetObservedServiceNames2(t *testing.T) {
+	reset()
+	r, _ := NewRegistry(WithPubsub(pb))
+	ch := make(chan interface{})
+	go launchSubscriber(ch, "test1", "43")
+	go launchSubscriber(ch, "test2", "44")
+	go launchSubscriber(ch, "test3", "45")
+	go launchSubscriber(ch, "test1", "45")
+	go launchSubscriber(ch, "test4", "44")
+	go launchSubscriber(ch, "test5", "45")
+	r.GetService("test1")
+	r.GetService("test2")
+	r.GetService("test3")
+	r.GetService("test3")
+	r.GetService("test4")
+	r.GetService("test5")
+	names := r.GetObservedServiceNames()
+	assert.Equal(t, 5, len(names))
+
+	close(ch)
 }

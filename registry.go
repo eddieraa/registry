@@ -21,6 +21,7 @@ type Registry interface {
 	GetServices(name string) ([]Service, error)
 	GetService(name string, filters ...Filter) (*Service, error)
 	Observe(serviceName string) error
+	GetObservedServiceNames() []string
 	Subscribers() []string
 	Close() error
 }
@@ -255,6 +256,23 @@ func (r *reg) Unregister(s Service) (err error) {
 
 }
 
+//GetObservedServiceNames return subscribed service names
+func (r *reg) GetObservedServiceNames() (res []string) {
+	if r == nil {
+		return
+	}
+	res = make([]string, len(r.observers))
+	i := 0
+	for k := range r.observers {
+		if k != "*" {
+			res[i] = k
+			i++
+		}
+	}
+	res = res[0:i]
+	return
+}
+
 //NewRegistry create a new service registry instance
 func NewRegistry(opts ...Option) (r Registry, err error) {
 	r = &reg{
@@ -323,6 +341,13 @@ func GetServices(name string) ([]Service, error) {
 		return nil, ErrNoDefaultInstance
 	}
 	return instance.GetServices(name)
+}
+
+func GetObservedServiceNames() []string {
+	if instance == nil {
+		return nil
+	}
+	return instance.GetObservedServiceNames()
 }
 
 //Observe subscribe to service

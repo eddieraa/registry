@@ -31,10 +31,11 @@ func main() {
 		panic(fmt.Sprint("Could not connect to nats (", natsURL, "): ", err))
 	}
 
-	r, err := registry.NewRegistry(regnats.Nats(conn))
+	r, err := registry.NewRegistry(regnats.Nats(conn), registry.WithLoglevel(logrus.DebugLevel))
 	if err != nil {
 		logrus.Fatal(err)
 	}
+	r.Observe("*")
 	r.Register(registry.Service{Name: consul.REGISTRY_NAME, Address: bindAddress})
 	consul.HandleServices(r)
 	log.Fatal(http.ListenAndServe(bindAddress, nil))
