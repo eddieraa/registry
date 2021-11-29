@@ -59,14 +59,23 @@ func LoadBalanceFilter() Filter {
 	return fn
 }
 
+func PassingFilter() Filter {
+	fn := func(services []*Pong) []*Pong {
+		res := []*Pong{}
+		for _, p := range services {
+			if p.Status == Passing {
+				res = append(res, p)
+			}
+		}
+		return res
+	}
+	return fn
+}
+
 //LocalhostOFilter accept only service on the same machine
 func LocalhostOFilter() ObserveFilter {
 	name := hostname()
-
 	return func(p *Pong) bool {
-		if name == p.Host {
-			return true
-		}
-		return false
+		return name == p.Host
 	}
 }
