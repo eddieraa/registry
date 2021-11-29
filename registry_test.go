@@ -18,7 +18,9 @@ var pb = test.NewPubSub()
 //var pb pubsub.Pubsub
 
 func init() {
+
 	logrus.SetFormatter(&logrus.TextFormatter{DisableColors: true})
+	logrus.Info("INIT")
 	/*
 		conn, err := nats.Connect(nats.DefaultURL)
 		if err != nil {
@@ -64,7 +66,7 @@ func TestChainFilter(t *testing.T) {
 }
 
 func launchSubscriber(chstop chan interface{}, name string, addr string) {
-	reg, _ := NewRegistry(WithPubsub(pb), WithRegisterInterval(500*time.Millisecond), WithLoglevel(logrus.DebugLevel))
+	reg, _ := NewRegistry(WithPubsub(pb), WithRegisterInterval(500*time.Millisecond), WithLoglevel(logrus.InfoLevel))
 	myaddr := addr
 	host := ""
 	if strings.Contains(addr, ":") {
@@ -301,6 +303,10 @@ func TestPongToString(t *testing.T) {
 
 }
 
+func TestPongMarshal(t *testing.T) {
+
+}
+
 func TestErrRegister(t *testing.T) {
 	test.GetServer().Pause()
 	defer test.GetServer().Resume()
@@ -487,18 +493,18 @@ func TestLocalFreeIPv6Addr(t *testing.T) {
 	assert.NotNil(t, add)
 }
 
-func TestConcurrentAccessToRegisterdServices(t *testing.T) {
+func TestConcurrentAccessToRegisteredServices(t *testing.T) {
 	reset()
-	SetDefault(WithPubsub(pb), WithRegisterInterval(time.Millisecond*1))
+	registry, _ := NewRegistry(WithPubsub(pb), WithRegisterInterval(time.Millisecond*1))
 	count := 0
 	ch := make(chan bool)
 	registerFn := func() {
 		count++
 		serviceName := fmt.Sprint("sreg", count)
-		Register(Service{Name: serviceName, Address: "localhost:2134"})
+		registry.Register(Service{Name: serviceName, Address: "localhost:2134"})
 		<-ch
 	}
-	registry, _ := GetDefault()
+
 	r := registry.(*reg)
 	for n := 0; n < 10; n++ {
 		go r.registerServiceInContinue()
@@ -509,7 +515,7 @@ func TestConcurrentAccessToRegisterdServices(t *testing.T) {
 	unRegisterFn := func() {
 		count2++
 		serviceName := fmt.Sprint("sreg", count2)
-		Unregister(Service{Name: serviceName, Address: "localhost:2134"})
+		registry.Unregister(Service{Name: serviceName, Address: "localhost:2134"})
 		<-ch
 	}
 	for n := 0; n < 50; n++ {
@@ -560,12 +566,14 @@ func TestLocalhostOFilter(t *testing.T) {
 }
 
 func TestKV(t *testing.T) {
+
 	reset()
-	SetDefault(WithPubsub(pb))
+	r, _ := NewRegistry(WithPubsub(pb))
 	s := Service{Name: "TestKV", Address: "localhost:234", KV: map[string]string{"toto": "titi", "popo": "ouf"}}
 	chStop := make(chan interface{})
 	go launchSubscriber2(chStop, s)
-	sr, _ := GetService("TestKV")
+
+	sr, _ := r.GetService("TestKV")
 	assert.Equal(t, "titi", sr.KV["toto"])
 	close(chStop)
 
