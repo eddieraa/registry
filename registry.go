@@ -64,7 +64,7 @@ type Timestamps struct {
 type Pong struct {
 	Service
 	Timestamps *Timestamps `json:"t,omitempty"`
-	Status     Status      `json:"status,omitempty`
+	Status     Status      `json:"status,omitempty"`
 }
 
 //Event represent event (register|unregister|unavailbale)
