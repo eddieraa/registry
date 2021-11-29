@@ -23,6 +23,33 @@ type Registry interface {
 	Observe(serviceName string) error
 	Subscribers() []string
 	Close() error
+	SetServiceStatus(s Service, status Status) error
+}
+
+type Status int
+
+const (
+	Passing Status = iota
+	Warning
+	Critical
+)
+
+func (s Status) String() string {
+	return [...]string{"passing", "warning", "critical"}[s]
+}
+func (s *Status) FromString(status string) Status {
+	return map[string]Status{"": Passing, "passing": Passing, "warning": Warning, "critical": Critical}[status]
+}
+func (s Status) MarshalJSON() ([]byte, error) {
+	return json.Marshal(s.String())
+}
+func (s *Status) UnmarshalJSON(b []byte) error {
+	var _s string
+	if err := json.Unmarshal(b, &_s); err != nil {
+		return err
+	}
+	*s = s.FromString(_s)
+	return nil
 }
 
 //Timestamps define registered datetime and expiration duration
@@ -37,6 +64,7 @@ type Timestamps struct {
 type Pong struct {
 	Service
 	Timestamps *Timestamps `json:"t,omitempty"`
+	Status     Status      `json:"status,omitempty`
 }
 
 //Event represent event (register|unregister|unavailbale)
@@ -255,6 +283,17 @@ func (r *reg) Unregister(s Service) (err error) {
 
 }
 
+func (r *reg) SetServiceStatus(s Service, status Status) (err error) {
+	if v, ok := r.registeredServicesMap.Load(s.Name + s.Address); ok {
+		p := v.(*Pong)
+		p.Status = status
+		r.chFiredRegisteredService <- p
+	} else {
+		err = ErrNotFound
+	}
+	return
+}
+
 //NewRegistry create a new service registry instance
 func NewRegistry(opts ...Option) (r Registry, err error) {
 	r = &reg{
@@ -360,7 +399,7 @@ func (r *reg) GetService(name string, f ...Filter) (*Service, error) {
 	if err != nil {
 		return nil, err
 	}
-	if services == nil || len(services) == 0 {
+	if len(services) == 0 {
 		return nil, ErrNotFound
 	}
 	//return first item
@@ -410,7 +449,7 @@ func (r *reg) getinternalService(name string, serviceFilters ...Filter) (service
 	}
 
 	obs.callback = func(p *Pong) {
-		if filtered := chainFilters([]*Pong{p}, filters...); filtered != nil && len(filtered) > 0 {
+		if filtered := chainFilters([]*Pong{p}, filters...); len(filtered) > 0 {
 			obs.callback = nil
 			ch <- &p.Service
 		}
