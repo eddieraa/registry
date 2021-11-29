@@ -218,7 +218,7 @@ func (r *reg) pubregister(p *Pong) (err error) {
 			log.Error("publish register failed for service ", p.Name, " :", err)
 			return
 		}
-		log.Debugf("%s (%s) host: %s", topic, p.Address, p.Host)
+		log.Debugf("%s (%s) host: %s status %s", topic, p.Address, p.Host, p.Status)
 	}
 	return
 }

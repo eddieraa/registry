@@ -4,3 +4,5 @@ redis/sample/sample
 samples/samples.exe
 samples/httptest/httptest.exe
 redis/sample/sample.exe
+samples/httptest/httptest
+samples/httptest/httptest

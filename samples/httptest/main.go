@@ -26,6 +26,8 @@ func main() {
 	flag.StringVar(&natsURL, "nats-url", "localhost:4222", "NATS server URL ")
 	var close bool
 	flag.BoolVar(&close, "close", true, "do not unregister")
+	var warning bool
+	flag.BoolVar(&warning, "status-warning", false, "Set this service in warning status")
 
 	flag.Parse()
 	logrus.SetLevel(logrus.DebugLevel)
@@ -39,11 +41,15 @@ func main() {
 	if err != nil {
 		panic(fmt.Sprint("Could not connect to nats (", natsURL, "): ", err))
 	}
-	r, err := registry.SetDefault(pb.Nats(conn))
+	r, err := registry.SetDefault(pb.Nats(conn), registry.WithLoglevel(logrus.DebugLevel))
 	if err != nil {
 		panic(fmt.Sprint("Could not create registry ", err))
 	}
-	unregister, err := r.Register(registry.Service{Name: serviceName, Address: addr})
+	service := registry.Service{Name: serviceName, Address: addr}
+	unregister, err := r.Register(service)
+	if warning {
+		r.SetServiceStatus(service, registry.Warning)
+	}
 
 	//Intercep CTRL-C
 	sigs := make(chan os.Signal, 1)
