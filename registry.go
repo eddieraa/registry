@@ -24,6 +24,7 @@ type Registry interface {
 	Subscribers() []string
 	Close() error
 	SetServiceStatus(s Service, status Status) error
+	GetRegisteredServices() []Service
 }
 
 type Status int
@@ -294,6 +295,17 @@ func (r *reg) SetServiceStatus(s Service, status Status) (err error) {
 	return
 }
 
+func (r *reg) GetRegisteredServices() (services []Service) {
+	r.registeredServicesMap.Range(func(k, v interface{}) bool {
+		if services == nil {
+			services = make([]Service, 0)
+		}
+		services = append(services, v.(*Pong).Service)
+		return true
+	})
+	return
+}
+
 //NewRegistry create a new service registry instance
 func NewRegistry(opts ...Option) (r Registry, err error) {
 	r = &reg{
@@ -392,6 +404,20 @@ func Unregister(s Service) error {
 		return ErrNoDefaultInstance
 	}
 	return instance.Unregister(s)
+}
+
+func SetServiceStatus(s Service, status Status) error {
+	if instance == nil {
+		return ErrNoDefaultInstance
+	}
+	return instance.SetServiceStatus(s, status)
+}
+
+func GetRegisteredServices() ([]Service, error) {
+	if instance == nil {
+		return nil, ErrNoDefaultInstance
+	}
+	return instance.GetRegisteredServices(), nil
 }
 
 func (r *reg) GetService(name string, f ...Filter) (*Service, error) {
