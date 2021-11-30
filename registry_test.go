@@ -578,3 +578,12 @@ func TestKV(t *testing.T) {
 	close(chStop)
 
 }
+
+func TestGetRegisteredService(t *testing.T) {
+	reset()
+	r, _ := NewRegistry(WithPubsub(pb))
+	s := Service{Name: "TestKV", Address: "localhost:234", KV: map[string]string{"toto": "titi", "popo": "ouf"}}
+	r.Register(s)
+	assert.Equal(t, 1, len(r.GetRegisteredServices()))
+
+}
