@@ -287,8 +287,11 @@ func (r *reg) Unregister(s Service) (err error) {
 func (r *reg) SetServiceStatus(s Service, status Status) (err error) {
 	if v, ok := r.registeredServicesMap.Load(s.Name + s.Address); ok {
 		p := v.(*Pong)
-		p.Status = status
-		r.chFiredRegisteredService <- p
+		if p.Status != status {
+			p.Status = status
+			r.chFiredRegisteredService <- p
+		}
+
 	} else {
 		err = ErrNotFound
 	}
