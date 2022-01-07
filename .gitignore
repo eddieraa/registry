@@ -6,3 +6,5 @@ samples/httptest/httptest.exe
 redis/sample/sample.exe
 consul/service/service
 rest/service/service
+samples/httptest/httptest
+

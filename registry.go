@@ -24,6 +24,34 @@ type Registry interface {
 	GetObservedServiceNames() []string
 	Subscribers() []string
 	Close() error
+	SetServiceStatus(s Service, status Status) error
+	GetRegisteredServices() []Service
+}
+
+type Status int
+
+const (
+	Passing Status = iota
+	Warning
+	Critical
+)
+
+func (s Status) String() string {
+	return [...]string{"passing", "warning", "critical"}[s]
+}
+func (s *Status) FromString(status string) Status {
+	return map[string]Status{"": Passing, "passing": Passing, "warning": Warning, "critical": Critical}[status]
+}
+func (s Status) MarshalJSON() ([]byte, error) {
+	return json.Marshal(s.String())
+}
+func (s *Status) UnmarshalJSON(b []byte) error {
+	var _s string
+	if err := json.Unmarshal(b, &_s); err != nil {
+		return err
+	}
+	*s = s.FromString(_s)
+	return nil
 }
 
 //Timestamps define registered datetime and expiration duration
@@ -38,6 +66,7 @@ type Timestamps struct {
 type Pong struct {
 	Service
 	Timestamps *Timestamps `json:"t,omitempty"`
+	Status     Status      `json:"status,omitempty"`
 }
 
 //Event represent event (register|unregister|unavailbale)
@@ -191,7 +220,7 @@ func (r *reg) pubregister(p *Pong) (err error) {
 			log.Error("publish register failed for service ", p.Name, " :", err)
 			return
 		}
-		log.Debugf("%s (%s) host: %s", topic, p.Address, p.Host)
+		log.Debugf("%s (%s) host: %s status %s", topic, p.Address, p.Host, p.Status)
 	}
 	return
 }
@@ -270,6 +299,30 @@ func (r *reg) GetObservedServiceNames() (res []string) {
 		}
 	}
 	res = res[0:i]
+	return
+}
+func (r *reg) SetServiceStatus(s Service, status Status) (err error) {
+	if v, ok := r.registeredServicesMap.Load(s.Name + s.Address); ok {
+		p := v.(*Pong)
+		if p.Status != status {
+			p.Status = status
+			r.chFiredRegisteredService <- p
+		}
+
+	} else {
+		err = ErrNotFound
+	}
+	return
+}
+
+func (r *reg) GetRegisteredServices() (services []Service) {
+	r.registeredServicesMap.Range(func(k, v interface{}) bool {
+		if services == nil {
+			services = make([]Service, 0)
+		}
+		services = append(services, v.(*Pong).Service)
+		return true
+	})
 	return
 }
 
@@ -380,12 +433,26 @@ func Unregister(s Service) error {
 	return instance.Unregister(s)
 }
 
+func SetServiceStatus(s Service, status Status) error {
+	if instance == nil {
+		return ErrNoDefaultInstance
+	}
+	return instance.SetServiceStatus(s, status)
+}
+
+func GetRegisteredServices() ([]Service, error) {
+	if instance == nil {
+		return nil, ErrNoDefaultInstance
+	}
+	return instance.GetRegisteredServices(), nil
+}
+
 func (r *reg) GetService(name string, f ...Filter) (*Service, error) {
 	services, err := r.getinternalService(name, f...)
 	if err != nil {
 		return nil, err
 	}
-	if services == nil || len(services) == 0 {
+	if len(services) == 0 {
 		return nil, ErrNotFound
 	}
 	//return first item
@@ -435,7 +502,7 @@ func (r *reg) getinternalService(name string, serviceFilters ...Filter) (service
 	}
 
 	obs.callback = func(p *Pong) {
-		if filtered := chainFilters([]*Pong{p}, filters...); filtered != nil && len(filtered) > 0 {
+		if filtered := chainFilters([]*Pong{p}, filters...); len(filtered) > 0 {
 			obs.callback = nil
 			ch <- &p.Service
 		}

@@ -35,7 +35,7 @@ func main() {
 	for i := 0; i < 10; i++ {
 		service, err := reg.GetService(serviceName)
 		if err != nil {
-			logrus.Fatal("Could not get service ", err)
+			logrus.Fatalf("Could not get service %s: %v", serviceName, err)
 		}
 
 		rep, err := http.Get(fmt.Sprintf("http://%s/httptest", service.Address))
