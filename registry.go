@@ -21,6 +21,7 @@ type Registry interface {
 	GetServices(name string) ([]Service, error)
 	GetService(name string, filters ...Filter) (*Service, error)
 	Observe(serviceName string) error
+	GetObservedServiceNames() []string
 	Subscribers() []string
 	Close() error
 	SetServiceStatus(s Service, status Status) error
@@ -284,6 +285,22 @@ func (r *reg) Unregister(s Service) (err error) {
 
 }
 
+//GetObservedServiceNames return subscribed service names
+func (r *reg) GetObservedServiceNames() (res []string) {
+	if r == nil {
+		return
+	}
+	res = make([]string, len(r.observers))
+	i := 0
+	for k := range r.observers {
+		if k != "*" {
+			res[i] = k
+			i++
+		}
+	}
+	res = res[0:i]
+	return
+}
 func (r *reg) SetServiceStatus(s Service, status Status) (err error) {
 	if v, ok := r.registeredServicesMap.Load(s.Name + s.Address); ok {
 		p := v.(*Pong)
@@ -377,6 +394,13 @@ func GetServices(name string) ([]Service, error) {
 		return nil, ErrNoDefaultInstance
 	}
 	return instance.GetServices(name)
+}
+
+func GetObservedServiceNames() []string {
+	if instance == nil {
+		return nil
+	}
+	return instance.GetObservedServiceNames()
 }
 
 //Observe subscribe to service
