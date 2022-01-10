@@ -10,6 +10,7 @@ import (
 
 const (
 	REGISTRY_NAME = "registry-http-service"
+	BASE_URL      = "/v1/catalog/service/"
 )
 
 type CatalogResponse struct {
@@ -25,7 +26,7 @@ type CatalogResponse struct {
 	ServiceMeta    map[string]string
 }
 
-func handlerGetServices(reg registry.Registry, baseURL string) http.HandlerFunc {
+func GetHandlerFunc(reg registry.Registry, baseURL string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		format := r.URL.Query().Has("indent")
 		serviceName := r.URL.Path[len(baseURL):]
@@ -78,6 +79,5 @@ func sendError(w http.ResponseWriter, err error) {
 }
 
 func HandleServices(r registry.Registry) {
-	baseURL := "/v1/catalog/service/"
-	http.Handle(baseURL, handlerGetServices(r, baseURL))
+	http.Handle(BASE_URL, GetHandlerFunc(r, BASE_URL))
 }
