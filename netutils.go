@@ -8,11 +8,11 @@ import (
 	"strings"
 )
 
-//ErrNoFreePort when no free port is available
-var ErrNoFreePort = errors.New("No free port available")
+// ErrNoFreePort when no free port is available
+var ErrNoFreePort = errors.New("no free port available")
 
-//FreePort request a new free port
-//return -1 if error
+// FreePort request a new free port
+// return -1 if error
 func FreePort() (freeport int, err error) {
 	var addr *net.TCPAddr
 	addr, err = net.ResolveTCPAddr("tcp", "localhost:0")
@@ -34,7 +34,7 @@ func LocalFreeAddr() (freeaddr string, err error) {
 	return
 }
 
-//LocalFreeIPv6Addr return local free address ([::1]:34545)
+// LocalFreeIPv6Addr return local free address ([::1]:34545)
 func LocalFreeIPv6Addr() (freeaddr string, err error) {
 	var freeport int
 	if freeport, err = FreePort(); err == nil {
@@ -43,7 +43,7 @@ func LocalFreeIPv6Addr() (freeaddr string, err error) {
 	return
 }
 
-//FindFreePort from range of integer
+// FindFreePort from range of integer
 func FindFreePort(from, to int) (freeport int, err error) {
 	var tcpAddr *net.TCPAddr
 	var fatalerr error
@@ -57,10 +57,10 @@ func FindFreePort(from, to int) (freeport int, err error) {
 		}
 
 	}
-	return -1, fmt.Errorf("No free port available from range [%d :%d]", from, to)
+	return -1, fmt.Errorf("no free port available from range [%d :%d]", from, to)
 }
 
-//FindFreeLocalAddress return local free address using range of port (127.0.0.1:23432)
+// FindFreeLocalAddress return local free address using range of port (127.0.0.1:23432)
 func FindFreeLocalAddress(from, to int) (freeaddr string, err error) {
 	var freeport int
 	if freeport, err = FindFreePort(from, to); err == nil {
@@ -69,7 +69,7 @@ func FindFreeLocalAddress(from, to int) (freeaddr string, err error) {
 	return
 }
 
-//Port extract port from service
+// Port extract port from service
 func Port(s Service) int {
 	var port int
 	if pos := strings.LastIndexByte(s.Address, ':'); pos > 0 {
