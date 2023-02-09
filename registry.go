@@ -137,9 +137,9 @@ type reg struct {
 
 var (
 	//ErrNotFound when no service found
-	ErrNotFound = errors.New("No service found")
+	ErrNotFound = errors.New("no service found")
 	//ErrNoDefaultInstance when intance singleton has not been set
-	ErrNoDefaultInstance = errors.New("Default instance has not been set, call SetDefault before")
+	ErrNoDefaultInstance = errors.New("default instance has not been set, call SetDefault before")
 	//singleton instance
 	instance *reg
 	mu       sync.Mutex
@@ -162,7 +162,7 @@ func (s Service) String() string {
 
 func (p Pong) String() string {
 	if p.Timestamps == nil {
-		return fmt.Sprintf("%s", p.Name)
+		return p.Name
 	}
 	return fmt.Sprintf("%s timestamp %d, %d", p.Name, p.Timestamps.Registered, p.Timestamps.Duration)
 }
@@ -461,15 +461,11 @@ func (r *reg) GetService(name string, f ...Filter) (*Service, error) {
 }
 
 func chainFilters(pongs []*Pong, filters ...Filter) []Service {
-	services := []*Pong{}
-	for _, v := range pongs {
-		services = append(services, v)
-	}
-	if filters != nil {
-		for _, f := range filters {
-			if f != nil {
-				services = f(services)
-			}
+	services := append([]*Pong{}, pongs...)
+
+	for _, f := range filters {
+		if f != nil {
+			services = f(services)
 		}
 	}
 
