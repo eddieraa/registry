@@ -14,7 +14,7 @@ import (
 
 var log = logrus.New()
 
-//Registry Register, Unregister
+// Registry Register, Unregister
 type Registry interface {
 	Register(s Service) (FnUnregister, error)
 	Unregister(s Service) error
@@ -54,7 +54,7 @@ func (s *Status) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
-//Timestamps define registered datetime and expiration duration
+// Timestamps define registered datetime and expiration duration
 type Timestamps struct {
 	//Registered date registered in nanoseconds (unix timestamp in milliseconds)
 	Registered int64
@@ -62,14 +62,14 @@ type Timestamps struct {
 	Duration int
 }
 
-//Pong response to ping
+// Pong response to ping
 type Pong struct {
 	Service
 	Timestamps *Timestamps `json:"t,omitempty"`
 	Status     Status      `json:"status,omitempty"`
 }
 
-//Event represent event (register|unregister|unavailbale)
+// Event represent event (register|unregister|unavailbale)
 type Event string
 
 const (
@@ -79,13 +79,13 @@ const (
 	EventUnregister Event = "unregister"
 )
 
-//FnUnregister call this func for unregister the service
+// FnUnregister call this func for unregister the service
 type FnUnregister func()
 
-//ObserverEvent event tigered
+// ObserverEvent event tigered
 type ObserverEvent func(s Service, ev Event)
 
-//Service service struct
+// Service service struct
 type Service struct {
 	//Network tcp/unix/tpc6
 	Network string `json:"net,omitempty"`
@@ -105,7 +105,7 @@ type Service struct {
 	dueTime time.Time
 }
 
-//DueTime expiration time
+// DueTime expiration time
 func (s Service) DueTime() time.Time {
 	return s.dueTime
 }
@@ -285,7 +285,7 @@ func (r *reg) Unregister(s Service) (err error) {
 
 }
 
-//GetObservedServiceNames return subscribed service names
+// GetObservedServiceNames return subscribed service names
 func (r *reg) GetObservedServiceNames() (res []string) {
 	if r == nil {
 		return
@@ -326,7 +326,7 @@ func (r *reg) GetRegisteredServices() (services []Service) {
 	return
 }
 
-//NewRegistry create a new service registry instance
+// NewRegistry create a new service registry instance
 func NewRegistry(opts ...Option) (r Registry, err error) {
 	r = &reg{
 		ser:                             newServices(),
@@ -341,7 +341,7 @@ func NewRegistry(opts ...Option) (r Registry, err error) {
 	return r, err
 }
 
-//SetDefault set the default instance
+// SetDefault set the default instance
 //
 // ex pubsub transport
 func SetDefault(opts ...Option) (r Registry, err error) {
@@ -356,7 +356,7 @@ func SetDefault(opts ...Option) (r Registry, err error) {
 	return
 }
 
-//GetDefault return default instance. return err if no default instance had been set
+// GetDefault return default instance. return err if no default instance had been set
 func GetDefault() (r Registry, err error) {
 	if instance == nil {
 		return nil, ErrNoDefaultInstance
@@ -364,9 +364,9 @@ func GetDefault() (r Registry, err error) {
 	return instance, nil
 }
 
-//GetService find service with service name
+// GetService find service with service name
 //
-//Call SetDefault before use
+// Call SetDefault before use
 func GetService(name string, f ...Filter) (*Service, error) {
 	if instance == nil {
 		return nil, ErrNoDefaultInstance
@@ -374,9 +374,9 @@ func GetService(name string, f ...Filter) (*Service, error) {
 	return instance.GetService(name, f...)
 }
 
-//Close the registry instance
+// Close the registry instance
 //
-//Call SetDefault before
+// Call SetDefault before
 func Close() error {
 	if instance == nil {
 		return ErrNoDefaultInstance
@@ -386,9 +386,9 @@ func Close() error {
 	return err
 }
 
-//GetServices return all registered service
+// GetServices return all registered service
 //
-//Call SetDefault before use
+// Call SetDefault before use
 func GetServices(name string) ([]Service, error) {
 	if instance == nil {
 		return nil, ErrNoDefaultInstance
@@ -403,9 +403,9 @@ func GetObservedServiceNames() []string {
 	return instance.GetObservedServiceNames()
 }
 
-//Observe subscribe to service
+// Observe subscribe to service
 //
-//Call SetDefault before use
+// Call SetDefault before use
 func Observe(name string) error {
 	if instance == nil {
 		return ErrNoDefaultInstance
@@ -413,9 +413,9 @@ func Observe(name string) error {
 	return instance.Observe(name)
 }
 
-//Register register a new service
+// Register register a new service
 //
-//Call SetDefault before use
+// Call SetDefault before use
 func Register(s Service) (FnUnregister, error) {
 	if instance == nil {
 		return nil, ErrNoDefaultInstance
@@ -423,9 +423,9 @@ func Register(s Service) (FnUnregister, error) {
 	return instance.Register(s)
 }
 
-//Unregister unregister a service
+// Unregister unregister a service
 //
-//Call SetDefault before use
+// Call SetDefault before use
 func Unregister(s Service) error {
 	if instance == nil {
 		return ErrNoDefaultInstance
@@ -601,10 +601,10 @@ func (r *reg) Observe(service string) (err error) {
 	return
 }
 
-//Close unregister to all subscriptions.
-//Clear local cache.
-//Stop go routine if exist.
-//TODO
+// Close unregister to all subscriptions.
+// Clear local cache.
+// Stop go routine if exist.
+// TODO
 func (r *reg) Close() (err error) {
 	r.chStopChannelRegisteredServices <- true
 	r.registeredServicesMap.Range(func(k, v interface{}) bool {
