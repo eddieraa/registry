@@ -14,7 +14,7 @@ import (
 
 var log = logrus.New()
 
-//Registry Register, Unregister
+// Registry Register, Unregister
 type Registry interface {
 	Register(s Service) (FnUnregister, error)
 	Unregister(s Service) error
@@ -54,7 +54,7 @@ func (s *Status) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
-//Timestamps define registered datetime and expiration duration
+// Timestamps define registered datetime and expiration duration
 type Timestamps struct {
 	//Registered date registered in nanoseconds (unix timestamp in milliseconds)
 	Registered int64
@@ -62,14 +62,14 @@ type Timestamps struct {
 	Duration int
 }
 
-//Pong response to ping
+// Pong response to ping
 type Pong struct {
 	Service
 	Timestamps *Timestamps `json:"t,omitempty"`
 	Status     Status      `json:"status,omitempty"`
 }
 
-//Event represent event (register|unregister|unavailbale)
+// Event represent event (register|unregister|unavailbale)
 type Event string
 
 const (
@@ -79,13 +79,13 @@ const (
 	EventUnregister Event = "unregister"
 )
 
-//FnUnregister call this func for unregister the service
+// FnUnregister call this func for unregister the service
 type FnUnregister func()
 
-//ObserverEvent event tigered
+// ObserverEvent event tigered
 type ObserverEvent func(s Service, ev Event)
 
-//Service service struct
+// Service service struct
 type Service struct {
 	//Network tcp/unix/tpc6
 	Network string `json:"net,omitempty"`
@@ -105,7 +105,7 @@ type Service struct {
 	dueTime time.Time
 }
 
-//DueTime expiration time
+// DueTime expiration time
 func (s Service) DueTime() time.Time {
 	return s.dueTime
 }
@@ -115,9 +115,10 @@ type observe struct {
 }
 
 type reg struct {
-	ser       *services
-	observers map[string]*observe
-	opts      Options
+	ser         *services
+	_observers  map[string]*observe
+	observersMu sync.Mutex
+	opts        Options
 
 	//manage Registered service
 	//registeredServices    map[string]*Pong
@@ -137,9 +138,9 @@ type reg struct {
 
 var (
 	//ErrNotFound when no service found
-	ErrNotFound = errors.New("No service found")
+	ErrNotFound = errors.New("no service found")
 	//ErrNoDefaultInstance when intance singleton has not been set
-	ErrNoDefaultInstance = errors.New("Default instance has not been set, call SetDefault before")
+	ErrNoDefaultInstance = errors.New("default instance has not been set, call SetDefault before")
 	//singleton instance
 	instance *reg
 	mu       sync.Mutex
@@ -162,7 +163,7 @@ func (s Service) String() string {
 
 func (p Pong) String() string {
 	if p.Timestamps == nil {
-		return fmt.Sprintf("%s", p.Name)
+		return p.Name
 	}
 	return fmt.Sprintf("%s timestamp %d, %d", p.Name, p.Timestamps.Registered, p.Timestamps.Duration)
 }
@@ -202,11 +203,13 @@ func (r *reg) Register(s Service) (f FnUnregister, err error) {
 
 func (r *reg) Subscribers() []string {
 	res := []string{}
-	for k := range r.observers {
+	r.observersMu.Lock()
+	for k := range r._observers {
 		if !strings.HasSuffix(k, "*") {
 			res = append(res, k)
 		}
 	}
+	r.observersMu.Unlock()
 	return res
 }
 
@@ -285,19 +288,21 @@ func (r *reg) Unregister(s Service) (err error) {
 
 }
 
-//GetObservedServiceNames return subscribed service names
+// GetObservedServiceNames return subscribed service names
 func (r *reg) GetObservedServiceNames() (res []string) {
 	if r == nil {
 		return
 	}
-	res = make([]string, len(r.observers))
+	r.observersMu.Lock()
+	res = make([]string, len(r._observers))
 	i := 0
-	for k := range r.observers {
+	for k := range r._observers {
 		if k != "*" {
 			res[i] = k
 			i++
 		}
 	}
+	r.observersMu.Unlock()
 	res = res[0:i]
 	return
 }
@@ -326,11 +331,11 @@ func (r *reg) GetRegisteredServices() (services []Service) {
 	return
 }
 
-//NewRegistry create a new service registry instance
+// NewRegistry create a new service registry instance
 func NewRegistry(opts ...Option) (r Registry, err error) {
 	r = &reg{
 		ser:                             newServices(),
-		observers:                       make(map[string]*observe),
+		_observers:                      make(map[string]*observe),
 		opts:                            newOptions(opts...),
 		chFiredRegisteredService:        make(chan *Pong),
 		chStopChannelRegisteredServices: make(chan bool),
@@ -341,7 +346,7 @@ func NewRegistry(opts ...Option) (r Registry, err error) {
 	return r, err
 }
 
-//SetDefault set the default instance
+// SetDefault set the default instance
 //
 // ex pubsub transport
 func SetDefault(opts ...Option) (r Registry, err error) {
@@ -356,7 +361,7 @@ func SetDefault(opts ...Option) (r Registry, err error) {
 	return
 }
 
-//GetDefault return default instance. return err if no default instance had been set
+// GetDefault return default instance. return err if no default instance had been set
 func GetDefault() (r Registry, err error) {
 	if instance == nil {
 		return nil, ErrNoDefaultInstance
@@ -364,9 +369,9 @@ func GetDefault() (r Registry, err error) {
 	return instance, nil
 }
 
-//GetService find service with service name
+// GetService find service with service name
 //
-//Call SetDefault before use
+// Call SetDefault before use
 func GetService(name string, f ...Filter) (*Service, error) {
 	if instance == nil {
 		return nil, ErrNoDefaultInstance
@@ -374,9 +379,9 @@ func GetService(name string, f ...Filter) (*Service, error) {
 	return instance.GetService(name, f...)
 }
 
-//Close the registry instance
+// Close the registry instance
 //
-//Call SetDefault before
+// Call SetDefault before
 func Close() error {
 	if instance == nil {
 		return ErrNoDefaultInstance
@@ -386,9 +391,9 @@ func Close() error {
 	return err
 }
 
-//GetServices return all registered service
+// GetServices return all registered service
 //
-//Call SetDefault before use
+// Call SetDefault before use
 func GetServices(name string) ([]Service, error) {
 	if instance == nil {
 		return nil, ErrNoDefaultInstance
@@ -403,9 +408,9 @@ func GetObservedServiceNames() []string {
 	return instance.GetObservedServiceNames()
 }
 
-//Observe subscribe to service
+// Observe subscribe to service
 //
-//Call SetDefault before use
+// Call SetDefault before use
 func Observe(name string) error {
 	if instance == nil {
 		return ErrNoDefaultInstance
@@ -413,9 +418,9 @@ func Observe(name string) error {
 	return instance.Observe(name)
 }
 
-//Register register a new service
+// Register register a new service
 //
-//Call SetDefault before use
+// Call SetDefault before use
 func Register(s Service) (FnUnregister, error) {
 	if instance == nil {
 		return nil, ErrNoDefaultInstance
@@ -423,9 +428,9 @@ func Register(s Service) (FnUnregister, error) {
 	return instance.Register(s)
 }
 
-//Unregister unregister a service
+// Unregister unregister a service
 //
-//Call SetDefault before use
+// Call SetDefault before use
 func Unregister(s Service) error {
 	if instance == nil {
 		return ErrNoDefaultInstance
@@ -461,15 +466,11 @@ func (r *reg) GetService(name string, f ...Filter) (*Service, error) {
 }
 
 func chainFilters(pongs []*Pong, filters ...Filter) []Service {
-	services := []*Pong{}
-	for _, v := range pongs {
-		services = append(services, v)
-	}
-	if filters != nil {
-		for _, f := range filters {
-			if f != nil {
-				services = f(services)
-			}
+	services := append([]*Pong{}, pongs...)
+
+	for _, f := range filters {
+		if f != nil {
+			services = f(services)
 		}
 	}
 
@@ -478,6 +479,17 @@ func chainFilters(pongs []*Pong, filters ...Filter) []Service {
 		res[i] = p.Service
 	}
 	return res
+}
+
+// observerGetOrCreate get observers entry if not exist create empty observer pointer
+func (r *reg) observerGetOrCreate(key string) (o *observe, alreadyExist bool) {
+	r.observersMu.Lock()
+	if o, alreadyExist = r._observers[key]; !alreadyExist {
+		o = &observe{}
+		r._observers[key] = o
+	}
+	r.observersMu.Unlock()
+	return
 }
 
 func (r *reg) getinternalService(name string, serviceFilters ...Filter) (services []Service, err error) {
@@ -495,11 +507,7 @@ func (r *reg) getinternalService(name string, serviceFilters ...Filter) (service
 	//the callback apply filters on service and write in the channel when a service is ok with the filters
 	ch := make(chan *Service)
 
-	obs := r.observers[name]
-	if obs == nil {
-		obs = &observe{}
-		r.observers[name] = obs
-	}
+	obs, _ := r.observerGetOrCreate(name)
 
 	obs.callback = func(p *Pong) {
 		if filtered := chainFilters([]*Pong{p}, filters...); len(filtered) > 0 {
@@ -545,12 +553,10 @@ func (r *reg) subregister(msg *pubsub.PubsubMsg) {
 			return
 		}
 	}
-	if o, ok := r.observers[p.Name]; ok {
+	if o, alreadyExist := r.observerGetOrCreate(p.Name); alreadyExist {
 		if o.callback != nil {
 			o.callback(p)
 		}
-	} else {
-		r.observers[p.Name] = &observe{}
 	}
 	var alreadyExist bool
 	if p, alreadyExist = r.ser.LoadOrStore(p); !alreadyExist && r.opts.observerEvent != nil {
@@ -586,9 +592,8 @@ func (r *reg) subunregister(msg *pubsub.PubsubMsg) {
 }
 
 func (r *reg) Observe(service string) (err error) {
-	if _, ok := r.observers[service]; !ok {
-		r.observers[service] = &observe{}
-	}
+	r.observerGetOrCreate(service)
+
 	var s pubsub.Subscription
 	s, err = r.opts.pubsub.Sub(r.buildMessage("register", service), r.subregister)
 	if err == nil {
@@ -601,10 +606,10 @@ func (r *reg) Observe(service string) (err error) {
 	return
 }
 
-//Close unregister to all subscriptions.
-//Clear local cache.
-//Stop go routine if exist.
-//TODO
+// Close unregister to all subscriptions.
+// Clear local cache.
+// Stop go routine if exist.
+// TODO
 func (r *reg) Close() (err error) {
 	r.chStopChannelRegisteredServices <- true
 	r.registeredServicesMap.Range(func(k, v interface{}) bool {
