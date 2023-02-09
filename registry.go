@@ -115,9 +115,10 @@ type observe struct {
 }
 
 type reg struct {
-	ser       *services
-	observers map[string]*observe
-	opts      Options
+	ser         *services
+	_observers  map[string]*observe
+	observersMu sync.Mutex
+	opts        Options
 
 	//manage Registered service
 	//registeredServices    map[string]*Pong
@@ -202,11 +203,13 @@ func (r *reg) Register(s Service) (f FnUnregister, err error) {
 
 func (r *reg) Subscribers() []string {
 	res := []string{}
-	for k := range r.observers {
+	r.observersMu.Lock()
+	for k := range r._observers {
 		if !strings.HasSuffix(k, "*") {
 			res = append(res, k)
 		}
 	}
+	r.observersMu.Unlock()
 	return res
 }
 
@@ -290,14 +293,16 @@ func (r *reg) GetObservedServiceNames() (res []string) {
 	if r == nil {
 		return
 	}
-	res = make([]string, len(r.observers))
+	r.observersMu.Lock()
+	res = make([]string, len(r._observers))
 	i := 0
-	for k := range r.observers {
+	for k := range r._observers {
 		if k != "*" {
 			res[i] = k
 			i++
 		}
 	}
+	r.observersMu.Unlock()
 	res = res[0:i]
 	return
 }
@@ -330,7 +335,7 @@ func (r *reg) GetRegisteredServices() (services []Service) {
 func NewRegistry(opts ...Option) (r Registry, err error) {
 	r = &reg{
 		ser:                             newServices(),
-		observers:                       make(map[string]*observe),
+		_observers:                      make(map[string]*observe),
 		opts:                            newOptions(opts...),
 		chFiredRegisteredService:        make(chan *Pong),
 		chStopChannelRegisteredServices: make(chan bool),
@@ -476,6 +481,17 @@ func chainFilters(pongs []*Pong, filters ...Filter) []Service {
 	return res
 }
 
+// observerGetOrCreate get observers entry if not exist create empty observer pointer
+func (r *reg) observerGetOrCreate(key string) (o *observe, alreadyExist bool) {
+	r.observersMu.Lock()
+	if o, alreadyExist = r._observers[key]; !alreadyExist {
+		o = &observe{}
+		r._observers[key] = o
+	}
+	r.observersMu.Unlock()
+	return
+}
+
 func (r *reg) getinternalService(name string, serviceFilters ...Filter) (services []Service, err error) {
 	filters := serviceFilters
 	if filters == nil {
@@ -491,11 +507,7 @@ func (r *reg) getinternalService(name string, serviceFilters ...Filter) (service
 	//the callback apply filters on service and write in the channel when a service is ok with the filters
 	ch := make(chan *Service)
 
-	obs := r.observers[name]
-	if obs == nil {
-		obs = &observe{}
-		r.observers[name] = obs
-	}
+	obs, _ := r.observerGetOrCreate(name)
 
 	obs.callback = func(p *Pong) {
 		if filtered := chainFilters([]*Pong{p}, filters...); len(filtered) > 0 {
@@ -541,12 +553,10 @@ func (r *reg) subregister(msg *pubsub.PubsubMsg) {
 			return
 		}
 	}
-	if o, ok := r.observers[p.Name]; ok {
+	if o, alreadyExist := r.observerGetOrCreate(p.Name); alreadyExist {
 		if o.callback != nil {
 			o.callback(p)
 		}
-	} else {
-		r.observers[p.Name] = &observe{}
 	}
 	var alreadyExist bool
 	if p, alreadyExist = r.ser.LoadOrStore(p); !alreadyExist && r.opts.observerEvent != nil {
@@ -582,9 +592,8 @@ func (r *reg) subunregister(msg *pubsub.PubsubMsg) {
 }
 
 func (r *reg) Observe(service string) (err error) {
-	if _, ok := r.observers[service]; !ok {
-		r.observers[service] = &observe{}
-	}
+	r.observerGetOrCreate(service)
+
 	var s pubsub.Subscription
 	s, err = r.opts.pubsub.Sub(r.buildMessage("register", service), r.subregister)
 	if err == nil {
