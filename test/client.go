@@ -67,7 +67,7 @@ func (c *cli) String() string {
 	return fmt.Sprintf("%d", c.i)
 }
 
-//Debug debug interface
+// Debug debug interface
 type Debug interface {
 	CallbackSub(func(string, *pubsub.PubsubMsg) *pubsub.PubsubMsg)
 	CallbackPub(func(string, []byte) ([]byte, error))

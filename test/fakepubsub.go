@@ -17,10 +17,10 @@ type fakeServer struct {
 	pause    bool
 }
 
-//ErrPubsubPaused when pubsub is not available
+// ErrPubsubPaused when pubsub is not available
 var ErrPubsubPaused = errors.New("fakepubsub is paused")
 
-//Server ability to Pause or Restart
+// Server ability to Pause or Restart
 type Server interface {
 	Resume()
 	Pause()
@@ -134,12 +134,12 @@ func (s *fakeServer) SendMessage(mes *pubsub.PubsubMsg) error {
 func fakesub(m *pubsub.PubsubMsg) {
 }
 
-//NewPubSub return new Pubsub instance
+// NewPubSub return new Pubsub instance
 func NewPubSub() pubsub.Pubsub {
 	return newCli(&server)
 }
 
-//GetServer return server instance
+// GetServer return server instance
 func GetServer() Server {
 	return &server
 }

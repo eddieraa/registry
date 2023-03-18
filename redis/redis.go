@@ -24,7 +24,7 @@ type subscription struct {
 	sub     func(m *pb.PubsubMsg)
 }
 
-//NewRedisClient return Options with redis connection
+// NewRedisClient return Options with redis connection
 func NewRedisClient(addr string) registry.Option {
 	rdb := redis.NewClient(&redis.Options{
 		Addr: addr,
@@ -35,12 +35,12 @@ func NewRedisClient(addr string) registry.Option {
 	return registry.WithPubsub(pb)
 }
 
-//WithRedis return Option with redis client
+// WithRedis return Option with redis client
 func WithRedis(rdb *redis.Client) registry.Option {
 	return registry.WithPubsub(NewPub(rdb))
 }
 
-//NewPub return Redis Pubsub
+// NewPub return Redis Pubsub
 func NewPub(rb *redis.Client) pb.Pubsub {
 	ctx := context.Background()
 	res := &pubsub{

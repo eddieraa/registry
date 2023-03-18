@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-//create in memory pubsub
+// create in memory pubsub
 var pb = test.NewPubSub()
 
 //var pb pubsub.Pubsub
