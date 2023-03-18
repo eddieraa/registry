@@ -7,10 +7,10 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-//Option option func
+// Option option func
 type Option func(opts *Options)
 
-//Options all configurable option
+// Options all configurable option
 type Options struct {
 	timeout           time.Duration
 	registerInterval  time.Duration
@@ -65,56 +65,56 @@ func newOptions(opts ...Option) Options {
 	return options
 }
 
-//WithPubsub initialyse service registry with nats connection
+// WithPubsub initialyse service registry with nats connection
 func WithPubsub(pb pubsub.Pubsub) Option {
 	return func(opts *Options) {
 		opts.pubsub = pb
 	}
 }
 
-//WithTimeout define timeout
+// WithTimeout define timeout
 func WithTimeout(timeout time.Duration) Option {
 	return func(opts *Options) {
 		opts.timeout = timeout
 	}
 }
 
-//WithRegisterInterval time between 2 register publish
+// WithRegisterInterval time between 2 register publish
 func WithRegisterInterval(duration time.Duration) Option {
 	return func(opts *Options) {
 		opts.registerInterval = duration
 	}
 }
 
-//WithMainTopic all topic will start with topic. Usefull in multi-tenancy
+// WithMainTopic all topic will start with topic. Usefull in multi-tenancy
 func WithMainTopic(topic string) Option {
 	return func(opts *Options) {
 		opts.mainTopic = topic
 	}
 }
 
-//AddFilter add filter
+// AddFilter add filter
 func AddFilter(f Filter) Option {
 	return func(opts *Options) {
 		opts.filters = append(opts.filters, f)
 	}
 }
 
-//AddObserveFilter adding filter
+// AddObserveFilter adding filter
 func AddObserveFilter(f ObserveFilter) Option {
 	return func(opts *Options) {
 		opts.observeFilters = append(opts.observeFilters, f)
 	}
 }
 
-//WithObserverEvent set handler for Observer Event
+// WithObserverEvent set handler for Observer Event
 func WithObserverEvent(ev ObserverEvent) Option {
 	return func(opts *Options) {
 		opts.observerEvent = ev
 	}
 }
 
-//WithLoglevel set log level
+// WithLoglevel set log level
 func WithLoglevel(level logrus.Level) Option {
 	return func(opts *Options) {
 		opts.loglevel = level

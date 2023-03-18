@@ -16,7 +16,7 @@ type subscription struct {
 
 var log = logrus.New()
 
-//SetDefault with a nats connection
+// SetDefault with a nats connection
 func SetDefault(c *nats.Conn, opts ...registry.Option) (r registry.Registry, err error) {
 	options := []registry.Option{Nats(c)}
 	if opts != nil {
@@ -26,7 +26,7 @@ func SetDefault(c *nats.Conn, opts ...registry.Option) (r registry.Registry, err
 	return registry.SetDefault(options...)
 }
 
-//NewPub return NATS Pubsub
+// NewPub return NATS Pubsub
 func NewPub(c *nats.Conn) pubsub.Pubsub {
 	pb := &pb{
 		c: c,
@@ -57,12 +57,12 @@ func (s *subscription) Subject() string {
 	return s.s.Subject
 }
 
-//Nats initialyse service registry with nats connection
+// Nats initialyse service registry with nats connection
 func Nats(conn *nats.Conn) registry.Option {
 	return registry.WithPubsub(NewPub(conn))
 }
 
-//SetLogLevel log level
+// SetLogLevel log level
 func SetLogLevel(level logrus.Level) {
 	log.SetLevel(level)
 }

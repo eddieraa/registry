@@ -19,7 +19,7 @@ func (s *services) Delete(p *Pong) {
 	s.m.Delete(p.Name + p.Address)
 }
 
-//DeleteByName delete service bye name with key is serviceName+serviceAddress
+// DeleteByName delete service bye name with key is serviceName+serviceAddress
 func (s *services) DeleteByName(key string) {
 	if v, ok := s.m.Load(key); ok {
 		log.Debug("Delete ok ", key)
@@ -57,9 +57,9 @@ func (s *services) IterateServiceName(f func(key string) bool) {
 	})
 }
 
-//LoadOrStore LoadOrStore returns the existing value for the key if present.
-//Otherwise, it stores and returns the given value.
-//The loaded result is true if the value was loaded, false if stored.
+// LoadOrStore LoadOrStore returns the existing value for the key if present.
+// Otherwise, it stores and returns the given value.
+// The loaded result is true if the value was loaded, false if stored.
 func (s *services) LoadOrStore(p *Pong) (res *Pong, loaded bool) {
 	var v interface{}
 	if v, loaded = s.m.LoadOrStore(p.Name+p.Address, p); loaded {

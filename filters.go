@@ -6,14 +6,14 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-//Filter used for filtering service
-//do not return nil
-//Ex Load Balancing
+// Filter used for filtering service
+// do not return nil
+// Ex Load Balancing
 type Filter func(services []*Pong) []*Pong
 
-//ObserveFilter used to accept (or not) new registered service.
+// ObserveFilter used to accept (or not) new registered service.
 //
-//Ex: you want only service on same host
+// Ex: you want only service on same host
 type ObserveFilter func(s *Pong) bool
 
 func hostname() string {
@@ -24,7 +24,7 @@ func hostname() string {
 	return host
 }
 
-//LocalhostFilter return true if hostname is equals to service host
+// LocalhostFilter return true if hostname is equals to service host
 func LocalhostFilter() Filter {
 	host := hostname()
 
@@ -41,7 +41,7 @@ func LocalhostFilter() Filter {
 	return fn
 }
 
-//LoadBalanceFilter basic loadbalancer
+// LoadBalanceFilter basic loadbalancer
 func LoadBalanceFilter() Filter {
 	lastInd := -1
 	emptyServices := []*Pong{}
@@ -72,7 +72,7 @@ func PassingFilter() Filter {
 	return fn
 }
 
-//LocalhostOFilter accept only service on the same machine
+// LocalhostOFilter accept only service on the same machine
 func LocalhostOFilter() ObserveFilter {
 	name := hostname()
 	return func(p *Pong) bool {
