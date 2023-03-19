@@ -23,6 +23,11 @@ type Options struct {
 	observerEvent     ObserverEvent
 	hostname          string
 	loglevel          logrus.Level
+	KVOption          map[string]interface{}
+}
+
+type Configure interface {
+	Configure(*Options) error
 }
 
 var (
@@ -57,6 +62,7 @@ func newOptions(opts ...Option) Options {
 		filters:           make([]Filter, 0),
 		observeFilters:    make([]ObserveFilter, 0),
 		loglevel:          logrus.InfoLevel,
+		KVOption:          make(map[string]interface{}),
 	}
 	options.hostname = hostname()
 	for _, o := range opts {
