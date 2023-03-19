@@ -13,31 +13,9 @@ import (
 	"time"
 
 	"github.com/eddieraa/registry"
-	pb "github.com/eddieraa/registry/nats"
-	"github.com/nats-io/nats.go"
+	nregistry "github.com/eddieraa/registry/nats"
 	"github.com/sirupsen/logrus"
 )
-
-func waitNatsAndRegister(natsUrl string, address string) {
-	for {
-		conn, err := nats.Connect(natsUrl, nats.Timeout(time.Second*5))
-		if err != nil {
-			logrus.Info("Could not connect to nats (", natsUrl, "): ", err)
-			time.Sleep(5 * time.Second)
-			continue
-		}
-		if _, err = registry.SetDefault(pb.Nats(conn), registry.WithLoglevel(logrus.DebugLevel)); err != nil {
-			logrus.Error(fmt.Sprint("Could not create registry ", err))
-			break
-		}
-		if _, err = registry.Register(registry.Service{Name: "http-test2", Address: address}); err != nil {
-			logrus.Error("could not register service ", err)
-		} else {
-			logrus.Info("register ok")
-		}
-		break
-	}
-}
 
 func main() {
 
@@ -48,9 +26,12 @@ func main() {
 
 	flag.Parse()
 	logrus.SetLevel(logrus.DebugLevel)
-
-	go waitNatsAndRegister(natsURL, addr)
+	logrus.SetFormatter(&logrus.TextFormatter{ForceColors: true})
+	logrus.Debug("start service")
+	nregistry.SetDefault(nil)
+	go registry.Register(registry.Service{Address: addr, Name: "sample2"})
 	defer registry.Close()
+	logrus.Debug("registgry created")
 	//Intercep CTRL-C
 	sigs := make(chan os.Signal, 1)
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
