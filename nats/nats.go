@@ -9,6 +9,8 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+const natsUrlsKey = "natsURL"
+
 type pb struct {
 	c               *nats.Conn
 	natsUrls        string
@@ -83,7 +85,10 @@ func (pb *pb) Stop() {
 }
 
 func (pb *pb) Configure(o *registry.Options) error {
-	pb.natsUrls = o.KVOption["natsUrls"].(string)
+	if o.KVOption[natsUrlsKey] == nil {
+		return nil
+	}
+	pb.natsUrls = o.KVOption[natsUrlsKey].(string)
 	return nil
 }
 
@@ -96,7 +101,7 @@ func (s *subscription) Subject() string {
 
 func WithNatsUrl(natsUrls string) registry.Option {
 	return func(opts *registry.Options) {
-		opts.KVOption["natsUrls"] = natsUrls
+		opts.KVOption[natsUrlsKey] = natsUrls
 	}
 }
 
