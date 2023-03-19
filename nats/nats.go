@@ -1,14 +1,20 @@
 package nats
 
 import (
+	"time"
+
 	"github.com/eddieraa/registry"
 	"github.com/eddieraa/registry/pubsub"
 	"github.com/nats-io/nats.go"
 	"github.com/sirupsen/logrus"
 )
 
+const natsUrlsKey = "natsURL"
+
 type pb struct {
-	c *nats.Conn
+	c               *nats.Conn
+	natsUrls        string
+	waitConnectChan chan bool
 }
 type subscription struct {
 	s *nats.Subscription
@@ -33,7 +39,34 @@ func NewPub(c *nats.Conn) pubsub.Pubsub {
 	}
 	return pb
 }
+
+func (pb *pb) wait4Connection() {
+	if pb.c == nil {
+		if pb.waitConnectChan == nil {
+			pb.waitConnectChan = make(chan bool)
+			go func() {
+				if pb.natsUrls == "" {
+					pb.natsUrls = "nats://localhost:4222"
+				}
+				ticker := time.NewTicker(time.Second)
+				for {
+					var err error
+					pb.c, err = nats.Connect(pb.natsUrls)
+					if err == nil && pb.c != nil {
+						close(pb.waitConnectChan)
+						ticker.Stop()
+						break
+					}
+					<-ticker.C
+				}
+			}()
+		}
+		<-pb.waitConnectChan
+	}
+}
+
 func (pb *pb) Sub(topic string, f func(m *pubsub.PubsubMsg)) (pubsub.Subscription, error) {
+	pb.wait4Connection()
 	log.Debug("subscribe to: ", topic)
 	subscript, err := pb.c.Subscribe(topic, func(m *nats.Msg) {
 		f(&pubsub.PubsubMsg{Subject: m.Subject, Data: m.Data})
@@ -42,6 +75,7 @@ func (pb *pb) Sub(topic string, f func(m *pubsub.PubsubMsg)) (pubsub.Subscriptio
 	return s, err
 }
 func (pb *pb) Pub(topic string, data []byte) error {
+	pb.wait4Connection()
 	log.Debug("publish: ", topic)
 	return pb.c.Publish(topic, data)
 }
@@ -50,11 +84,25 @@ func (pb *pb) Stop() {
 
 }
 
+func (pb *pb) Configure(o *registry.Options) error {
+	if o.KVOption[natsUrlsKey] == nil {
+		return nil
+	}
+	pb.natsUrls = o.KVOption[natsUrlsKey].(string)
+	return nil
+}
+
 func (s *subscription) Unsub() error {
 	return s.s.Unsubscribe()
 }
 func (s *subscription) Subject() string {
 	return s.s.Subject
+}
+
+func WithNatsUrl(natsUrls string) registry.Option {
+	return func(opts *registry.Options) {
+		opts.KVOption[natsUrlsKey] = natsUrls
+	}
 }
 
 // Nats initialyse service registry with nats connection

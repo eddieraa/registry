@@ -333,14 +333,21 @@ func (r *reg) GetRegisteredServices() (services []Service) {
 
 // NewRegistry create a new service registry instance
 func NewRegistry(opts ...Option) (r Registry, err error) {
+	o := newOptions(opts...)
+	if cfg, ok := o.pubsub.(Configure); ok {
+		if err = cfg.Configure(&o); err != nil {
+			return nil, err
+		}
+	}
 	r = &reg{
 		ser:                             newServices(),
 		_observers:                      make(map[string]*observe),
-		opts:                            newOptions(opts...),
+		opts:                            o,
 		chFiredRegisteredService:        make(chan *Pong),
 		chStopChannelRegisteredServices: make(chan bool),
 		subscriptions:                   make([]pubsub.Subscription, 0),
 	}
+
 	log.SetLevel(r.(*reg).opts.loglevel)
 	go r.(*reg).registerServiceInContinue()
 	return r, err
