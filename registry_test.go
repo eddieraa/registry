@@ -551,7 +551,7 @@ func TestMarshal(t *testing.T) {
 	pb.(test.Debug).CallbackPub(func(s string, b []byte) ([]byte, error) {
 		return []byte("titi toto"), nil
 	})
-	SetDefault(WithPubsub(pb))
+	SetDefault(WithPubsub(pb), WithLoglevel(logrus.FatalLevel))
 	ch := make(chan interface{})
 	go launchSubscriber(ch, "test", "localhost:43")
 
@@ -693,6 +693,7 @@ func TestGetServiceWithFilter(t *testing.T) {
 		time.Sleep(150 * time.Millisecond)
 		launchSubscriber(ch, "XXXXX", "995", "node", "slv3")
 	}()
+
 	s, err = r.GetService("XXXXX")
 	assert.Nil(t, err)
 	assert.NotNil(t, s)
@@ -700,6 +701,10 @@ func TestGetServiceWithFilter(t *testing.T) {
 	s, err = r.GetService("XXXXX", filterNode("slv2"))
 	assert.Nil(t, err)
 	assert.NotNil(t, s)
+	go func() {
+		time.Sleep(10 * time.Millisecond)
+		launchSubscriber(ch, "XXXXX", "992", "node", "slvxxxx")
+	}()
 
 	s, err = r.GetService("XXXXX", filterNode("slv3"))
 	assert.Nil(t, err)
