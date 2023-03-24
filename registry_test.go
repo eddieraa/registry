@@ -30,6 +30,7 @@ func init() {
 		},
 	})
 	logrus.SetReportCaller(true)
+	logrus.SetLevel(logrus.ErrorLevel)
 
 	/*
 		conn, err := nats.Connect(nats.DefaultURL)
@@ -76,7 +77,7 @@ func TestChainFilter(t *testing.T) {
 }
 
 func launchSubscriber(chstop chan interface{}, name string, addr string, kv ...string) {
-	reg, _ := NewRegistry(WithPubsub(pb), WithRegisterInterval(500*time.Millisecond), WithLoglevel(logrus.InfoLevel))
+	reg, _ := NewRegistry(WithPubsub(pb), WithRegisterInterval(500*time.Millisecond))
 	myaddr := addr
 	host := ""
 	if strings.Contains(addr, ":") {
@@ -642,9 +643,9 @@ func TestGetObservedServiceNames2(t *testing.T) {
 
 func TestGetServiceWithFilter(t *testing.T) {
 	reset()
-	logrus.SetLevel(logrus.DebugLevel)
+
 	ch := make(chan interface{})
-	r, _ := NewRegistry(WithPubsub(pb))
+	r, _ := NewRegistry(WithPubsub(pb), WithTimeout(time.Millisecond*200))
 
 	go launchSubscriber(ch, "XXXXX", "999", "node", "primary")
 	assert.NotNil(t, r)
@@ -689,12 +690,21 @@ func TestGetServiceWithFilter(t *testing.T) {
 	assert.NotNil(t, s)
 
 	go func() {
-		time.Sleep(80 * time.Millisecond)
-		launchSubscriber(ch, "XXXXX", "997", "node", "slv3")
+		time.Sleep(150 * time.Millisecond)
+		launchSubscriber(ch, "XXXXX", "995", "node", "slv3")
 	}()
 	s, err = r.GetService("XXXXX")
 	assert.Nil(t, err)
 	assert.NotNil(t, s)
+
+	s, err = r.GetService("XXXXX", filterNode("slv2"))
+	assert.Nil(t, err)
+	assert.NotNil(t, s)
+
+	s, err = r.GetService("XXXXX", filterNode("slv3"))
+	assert.Nil(t, err)
+	assert.NotNil(t, s)
+
 	close(ch)
 	r.Close()
 }
