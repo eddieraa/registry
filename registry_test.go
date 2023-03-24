@@ -695,6 +695,8 @@ func TestGetServiceWithFilter(t *testing.T) {
 	s, err = r.GetService("XXXXX")
 	assert.Nil(t, err)
 	assert.NotNil(t, s)
+	close(ch)
+	r.Close()
 }
 
 func TestGetRegisteredService(t *testing.T) {
