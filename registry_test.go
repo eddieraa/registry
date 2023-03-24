@@ -3,6 +3,9 @@ package registry
 import (
 	"fmt"
 	"net"
+	"path"
+	"runtime"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -19,7 +22,14 @@ var pb = test.NewPubSub()
 
 func init() {
 
-	logrus.SetFormatter(&logrus.TextFormatter{DisableColors: true})
+	logrus.SetFormatter(&logrus.TextFormatter{
+		ForceColors: true,
+		CallerPrettyfier: func(f *runtime.Frame) (function string, file string) {
+			file = path.Base(f.File) + ":" + strconv.Itoa(f.Line)
+			return
+		},
+	})
+	logrus.SetReportCaller(true)
 
 	/*
 		conn, err := nats.Connect(nats.DefaultURL)
@@ -65,7 +75,7 @@ func TestChainFilter(t *testing.T) {
 
 }
 
-func launchSubscriber(chstop chan interface{}, name string, addr string) {
+func launchSubscriber(chstop chan interface{}, name string, addr string, kv ...string) {
 	reg, _ := NewRegistry(WithPubsub(pb), WithRegisterInterval(500*time.Millisecond), WithLoglevel(logrus.InfoLevel))
 	myaddr := addr
 	host := ""
@@ -75,6 +85,14 @@ func launchSubscriber(chstop chan interface{}, name string, addr string) {
 		myaddr = fmt.Sprint("localhost:", addr)
 	}
 	s := Service{Name: name, Address: myaddr, Host: host}
+
+	// adding kv from kv variadic parameters
+	if len(kv)%2 == 0 {
+		s.KV = make(map[string]string)
+		for i := 0; i < len(kv); i = i + 2 {
+			s.KV[kv[i]] = kv[i+1]
+		}
+	}
 	fn, _ := reg.Register(s)
 	<-chstop
 	if fn != nil {
@@ -621,6 +639,64 @@ func TestGetObservedServiceNames2(t *testing.T) {
 
 	close(ch)
 }
+
+func TestGetServiceWithFilter(t *testing.T) {
+	reset()
+	logrus.SetLevel(logrus.DebugLevel)
+	ch := make(chan interface{})
+	r, _ := NewRegistry(WithPubsub(pb))
+
+	go launchSubscriber(ch, "XXXXX", "999", "node", "primary")
+	assert.NotNil(t, r)
+	s, err := r.GetService("XXXXX")
+	assert.Nil(t, err)
+	assert.NotNil(t, s)
+	//close chanel trigger unsubscribe
+	close(ch)
+	time.Sleep(time.Millisecond * 10)
+	s, err = r.GetService("XXXXX")
+	assert.NotNil(t, err)
+	assert.Nil(t, s)
+	ch = make(chan interface{})
+	go launchSubscriber(ch, "XXXXX", "998", "node", "slv1")
+	s, err = r.GetService("XXXXX")
+	assert.Nil(t, err)
+	assert.NotNil(t, s)
+
+	filterNode := func(node string) func(services []*Pong) []*Pong {
+		return func(services []*Pong) []*Pong {
+			res := []*Pong{}
+			for _, p := range services {
+				if p.KV["node"] == node {
+					res = append(res, p)
+				}
+			}
+			return res
+		}
+	}
+
+	s, err = r.GetService("XXXXX", filterNode("slv1"))
+	assert.Nil(t, err)
+	assert.NotNil(t, s)
+
+	s, err = r.GetService("XXXXX", filterNode("slv2"))
+	assert.NotNil(t, err)
+	assert.Nil(t, s)
+
+	go launchSubscriber(ch, "XXXXX", "997", "node", "slv2")
+	s, err = r.GetService("XXXXX", filterNode("slv2"))
+	assert.Nil(t, err)
+	assert.NotNil(t, s)
+
+	go func() {
+		time.Sleep(80 * time.Millisecond)
+		launchSubscriber(ch, "XXXXX", "997", "node", "slv3")
+	}()
+	s, err = r.GetService("XXXXX")
+	assert.Nil(t, err)
+	assert.NotNil(t, s)
+}
+
 func TestGetRegisteredService(t *testing.T) {
 	reset()
 	r, _ := NewRegistry(WithPubsub(pb))
