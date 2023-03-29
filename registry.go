@@ -173,13 +173,31 @@ func (r *reg) subToPing(p *Pong) error {
 	fn := func(m *pubsub.PubsubMsg) {
 		r.pubregister(p)
 	}
-	s, err := r.opts.pubsub.Sub(r.buildMessage("ping", p.Name), fn)
+	s, err := r.sub("ping", p.Name, fn)
 	if err != nil {
 		return err
 	}
 	log.Debugf("Subscribe for %s OK", s.Subject())
 	r.subscriptions = append(r.subscriptions, s)
 	return nil
+}
+
+func (r *reg) sub(action, service string, f func(m *pubsub.PubsubMsg)) (pubsub.Subscription, error) {
+	s, err := r.opts.pubsub.Sub(r.buildMessage(action, service), f)
+	if err != nil {
+		return s, err
+	}
+	r.subscriptions = append(r.subscriptions, s)
+	if strings.ToLower(service) == service {
+		return s, err
+	}
+	s, err = r.opts.pubsub.Sub(r.buildMessage(action, strings.ToLower(service)), f)
+	if err != nil {
+		return s, err
+	}
+	r.subscriptions = append(r.subscriptions, s)
+	return s, err
+
 }
 
 func (r *reg) Register(s Service) (f FnUnregister, err error) {
@@ -602,10 +620,10 @@ func (r *reg) Observe(service string) (err error) {
 	r.observerGetOrCreate(service)
 
 	var s pubsub.Subscription
-	s, err = r.opts.pubsub.Sub(r.buildMessage("register", service), r.subregister)
+	s, err = r.sub("register", service, r.subregister)
 	if err == nil {
 		r.subscriptions = append(r.subscriptions, s)
-		s, err = r.opts.pubsub.Sub(r.buildMessage("unregister", service), r.subunregister)
+		s, err = r.sub("unregister", service, r.subunregister)
 		if err == nil {
 			r.subscriptions = append(r.subscriptions, s)
 		}
