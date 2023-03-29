@@ -9,10 +9,8 @@ import (
 	"time"
 
 	"github.com/eddieraa/registry/pubsub"
-	"github.com/sirupsen/logrus"
+	log "github.com/sirupsen/logrus"
 )
-
-var log = logrus.New()
 
 // Registry Register, Unregister
 type Registry interface {
@@ -505,16 +503,25 @@ func (r *reg) getinternalService(name string, serviceFilters ...Filter) (service
 		filters = r.opts.filters
 	}
 	//service is already registered
+	log.Info("GetService ", name)
+	if res := r.ser.GetServices(name); len(res) > 0 {
+		if len(filters) > 0 {
+			//if filters apply filters
+			//=> if filters return empty response continue => send ping for
+			if filtered := chainFilters(res, filters...); len(filtered) > 0 {
+				return filtered, nil
+			}
+		} else {
+			return chainFilters(res), nil
+		}
 
-	if res := r.ser.GetServices(name); res != nil {
-		return chainFilters(res, filters...), nil
 	}
 	//service not yet registered
 	//register invoke r.Observe(service) with a callback containing a channel
 	//the callback apply filters on service and write in the channel when a service is ok with the filters
 	ch := make(chan *Service)
 
-	obs, _ := r.observerGetOrCreate(name)
+	obs, alreadyExist := r.observerGetOrCreate(name)
 
 	obs.callback = func(p *Pong) {
 		if filtered := chainFilters([]*Pong{p}, filters...); len(filtered) > 0 {
@@ -523,7 +530,10 @@ func (r *reg) getinternalService(name string, serviceFilters ...Filter) (service
 		}
 	}
 
-	r.Observe(name)
+	if !alreadyExist {
+		r.Observe(name)
+	}
+
 	if err = r.opts.pubsub.Pub(r.buildMessage("ping", name), nil); err == nil {
 		//create timeout if no service available
 		var serviceFound *Service
@@ -552,19 +562,20 @@ func (r *reg) subregister(msg *pubsub.PubsubMsg) {
 	var p *Pong
 	err := json.Unmarshal(msg.Data, &p)
 	if err != nil {
-		log.Errorf("unmarshal error when sub to register: %s", err)
+		log.Errorf("unmarshal error when sub to register: %v data: %s", err, string(msg.Data))
 		return
 	}
+	log.Info("rcv ", p.Name, " kv ", p.KV)
 	for _, f := range r.opts.observeFilters {
 		if !f(p) {
 			return
 		}
 	}
-	if o, alreadyExist := r.observerGetOrCreate(p.Name); alreadyExist {
-		if o.callback != nil {
-			o.callback(p)
-		}
+	o, _ := r.observerGetOrCreate(p.Name)
+	if o.callback != nil {
+		o.callback(p)
 	}
+
 	var alreadyExist bool
 	if p, alreadyExist = r.ser.LoadOrStore(p); !alreadyExist && r.opts.observerEvent != nil {
 		r.opts.observerEvent(p.Service, EventRegister)
@@ -598,6 +609,9 @@ func (r *reg) subunregister(msg *pubsub.PubsubMsg) {
 	log.Debugf("Unregister service %s/%s", s.Name, s.Address)
 }
 
+// adding subscription
+// register to service
+// unregister to service
 func (r *reg) Observe(service string) (err error) {
 	r.observerGetOrCreate(service)
 

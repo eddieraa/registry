@@ -2,6 +2,8 @@ package registry
 
 import (
 	"sync"
+
+	log "github.com/sirupsen/logrus"
 )
 
 type services struct {

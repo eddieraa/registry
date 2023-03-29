@@ -31,7 +31,7 @@ type Configure interface {
 }
 
 var (
-	//DefaultTimeout timeout for GetServices
+	//DefaultTimeout timeout for GetService
 	DefaultTimeout = 100 * time.Millisecond
 	//DefaultRegisterInterval time between 2 registration
 	DefaultRegisterInterval = 20 * time.Second
@@ -61,7 +61,7 @@ func newOptions(opts ...Option) Options {
 		dueDurationFactor: DefaultDueDurationFactor,
 		filters:           make([]Filter, 0),
 		observeFilters:    make([]ObserveFilter, 0),
-		loglevel:          logrus.InfoLevel,
+		loglevel:          logrus.ErrorLevel,
 		KVOption:          make(map[string]interface{}),
 	}
 	options.hostname = hostname()
@@ -78,7 +78,10 @@ func WithPubsub(pb pubsub.Pubsub) Option {
 	}
 }
 
-// WithTimeout define timeout
+// WithTimeout define GetService timeout option
+//
+// * GetService look service in his cache, if cache is empty, or if filtered services is empty
+// then a ping is sent. GetService wait until a new registered service
 func WithTimeout(timeout time.Duration) Option {
 	return func(opts *Options) {
 		opts.timeout = timeout
