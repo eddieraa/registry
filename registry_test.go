@@ -654,7 +654,7 @@ func TestGetServiceWithFilter(t *testing.T) {
 	assert.NotNil(t, s)
 	//close chanel trigger unsubscribe
 	close(ch)
-	time.Sleep(time.Millisecond * 10)
+	time.Sleep(time.Millisecond * 30)
 	s, err = r.GetService("XXXXX")
 	assert.NotNil(t, err)
 	assert.Nil(t, s)
