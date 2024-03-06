@@ -1,6 +1,8 @@
 package registry
 
 import (
+	"encoding/json"
+	"errors"
 	"fmt"
 	"net"
 	"path"
@@ -10,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eddieraa/registry/pubsub"
 	test "github.com/eddieraa/registry/test"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
@@ -721,4 +724,67 @@ func TestGetRegisteredService(t *testing.T) {
 	r.Register(s)
 	assert.Equal(t, 1, len(r.GetRegisteredServices()))
 
+}
+
+func TestPortSuccess(t *testing.T) {
+	assert.Equal(t, 8080, Port(Service{Address: "localhost:8080"}))
+}
+
+func TestPortNotDefined(t *testing.T) {
+	assert.Equal(t, 0, Port(Service{Address: "vm-yyy-xxx"}))
+}
+
+func TestStatusString(t *testing.T) {
+	assert.Equal(t, "critical", Critical.String())
+	assert.Equal(t, "passing", Passing.String())
+	assert.Equal(t, "warning", Warning.String())
+	st := Critical
+	assert.Equal(t, Warning, st.FromString("warning"))
+}
+
+func TestStatusJson(t *testing.T) {
+	js, _ := json.Marshal(Critical)
+	assert.Equal(t, "\"critical\"", string(js))
+	x := struct {
+		ST Status
+	}{ST: Warning}
+	assert.Nil(t, json.Unmarshal([]byte(`{"St":"warning"}`), &x))
+	assert.Equal(t, Warning, x.ST)
+	st := Warning
+	assert.NotNil(t, st.UnmarshalJSON(nil))
+}
+
+func TestServiceString(t *testing.T) {
+	s := Service{}
+	assert.NotEmpty(t, s.String())
+
+}
+
+func TestSetServiceStatus(t *testing.T) {
+	SetDefault(WithPubsub(pb))
+	assert.ErrorIs(t, ErrNotFound, SetServiceStatus(Service{Name: "popo"}, Critical))
+	Register(Service{Name: "myservice", Network: "tcp", URL: "http://xxx"})
+	assert.Nil(t, SetServiceStatus(Service{Name: "myservice"}, Critical))
+	Close()
+}
+
+type confStruct struct {
+	pubsub.PubsubMock
+	err error
+}
+
+func (cs *confStruct) Configure(o *Options) error {
+	return cs.err
+}
+
+func TestNewRegistryWithConfiguableOption(t *testing.T) {
+	pb := &confStruct{}
+	r, err := NewRegistry(WithPubsub(pb))
+	assert.Nil(t, err)
+	assert.NotNil(t, r)
+	Close()
+	pb.err = errors.New("invalid")
+	r, err = NewRegistry(WithPubsub(pb))
+	assert.Nil(t, r)
+	assert.Equal(t, pb.err, err)
 }
