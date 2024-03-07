@@ -44,11 +44,11 @@ func (s Status) MarshalJSON() ([]byte, error) {
 	return json.Marshal(s.String())
 }
 func (s *Status) UnmarshalJSON(b []byte) error {
-	var _s string
-	if err := json.Unmarshal(b, &_s); err != nil {
+	var statusString string
+	if err := json.Unmarshal(b, &statusString); err != nil {
 		return err
 	}
-	*s = s.FromString(_s)
+	*s = s.FromString(statusString)
 	return nil
 }
 
@@ -288,9 +288,6 @@ func (r *reg) Unregister(s Service) (err error) {
 
 // GetObservedServiceNames return subscribed service names
 func (r *reg) GetObservedServiceNames() (res []string) {
-	if r == nil {
-		return
-	}
 	r.observersMu.Lock()
 	res = make([]string, len(r._observers))
 	i := 0
