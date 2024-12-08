@@ -538,12 +538,16 @@ func (r *reg) getinternalService(name string, opts *getServicesOptions) (service
 		}
 
 	}
+
+	obs, alreadyExist := r.observerGetOrCreate(name)
+	if opts.nowait && alreadyExist {
+		return nil, ErrNotFound
+	}
+
 	//service not yet registered
 	//register invoke r.Observe(service) with a callback containing a channel
 	//the callback apply filters on service and write in the channel when a service is ok with the filters
 	ch := make(chan *Service, 1)
-
-	obs, alreadyExist := r.observerGetOrCreate(name)
 
 	obs.callback = func(p *Pong) {
 		if filtered := chainFilters([]*Pong{p}, filters...); len(filtered) > 0 {

@@ -782,3 +782,40 @@ func TestNewRegistryWithConfiguableOption(t *testing.T) {
 	assert.Nil(t, r)
 	assert.Equal(t, pb.err, err)
 }
+
+func TestGetServicesWithNoWait(t *testing.T) {
+	reset()
+	service := "TestGetServicesWithNoWait"
+	r, err := NewRegistry(WithPubsub(pb))
+	assert.Nil(t, err)
+	assert.NotNil(t, r)
+	s, err := r.GetServices(service, NoWait())
+	assert.Nil(t, s)
+	assert.ErrorIs(t, err, ErrNotFound)
+
+	chstop := make(chan interface{})
+	go launchSubscriber(chstop, service, "11")
+	s, err = r.GetServices(service, NoWait())
+	assert.Nil(t, s)
+	assert.ErrorIs(t, err, ErrNotFound)
+	Close()
+}
+
+func TestGetServicesWithNoWaitOK(t *testing.T) {
+	reset()
+	service := "TestGetServicesWithNoWaitOK"
+	r, err := NewRegistry(WithPubsub(pb))
+	assert.Nil(t, err)
+	assert.NotNil(t, r)
+	s, err := r.GetServices(service, NoWait())
+	assert.Nil(t, s)
+	assert.ErrorIs(t, err, ErrNotFound)
+
+	chstop := make(chan interface{})
+	go launchSubscriber(chstop, service, "11")
+	time.Sleep(time.Millisecond * 5)
+	s, err = r.GetServices(service, NoWait())
+	assert.Len(t, s, 1)
+	assert.Nil(t, err, ErrNotFound)
+	Close()
+}
