@@ -16,7 +16,7 @@ import (
 type Registry interface {
 	Register(s Service) (FnUnregister, error)
 	Unregister(s Service) error
-	GetServices(name string) ([]Service, error)
+	GetServices(name string, options ...func(*getServicesOptions)) ([]Service, error)
 	GetService(name string, filters ...Filter) (*Service, error)
 	Observe(serviceName string) error
 	GetObservedServiceNames() []string
@@ -132,6 +132,23 @@ type reg struct {
 	//references to all subscriptions to nats
 	//these subscriptions unsubscripe when Close function will be call
 	subscriptions []pubsub.Subscription
+}
+
+type getServicesOptions struct {
+	nowait  bool
+	filters []Filter
+}
+
+func NoWait() func(*getServicesOptions) {
+	return func(gso *getServicesOptions) {
+		gso.nowait = true
+	}
+}
+
+func WithFilters(filters ...Filter) func(*getServicesOptions) {
+	return func(gso *getServicesOptions) {
+		gso.filters = filters
+	}
 }
 
 var (
@@ -396,11 +413,11 @@ func Close() error {
 // GetServices return all registered service
 //
 // Call SetDefault before use
-func GetServices(name string) ([]Service, error) {
+func GetServices(name string, opts ...func(*getServicesOptions)) ([]Service, error) {
 	if instance == nil {
 		return nil, ErrNoDefaultInstance
 	}
-	return instance.GetServices(name)
+	return instance.GetServices(name, opts...)
 }
 
 func GetObservedServiceNames() []string {
@@ -455,7 +472,7 @@ func GetRegisteredServices() ([]Service, error) {
 }
 
 func (r *reg) GetService(name string, f ...Filter) (*Service, error) {
-	services, err := r.getinternalService(name, f...)
+	services, err := r.getinternalService(name, &getServicesOptions{filters: f})
 	if err != nil {
 		return nil, err
 	}
@@ -494,8 +511,16 @@ func (r *reg) observerGetOrCreate(key string) (o *observe, alreadyExist bool) {
 	return
 }
 
-func (r *reg) getinternalService(name string, serviceFilters ...Filter) (services []Service, err error) {
-	filters := serviceFilters
+func newGetServicesOptions(options []func(*getServicesOptions)) *getServicesOptions {
+	opts := &getServicesOptions{}
+	for _, o := range options {
+		o(opts)
+	}
+	return opts
+}
+
+func (r *reg) getinternalService(name string, opts *getServicesOptions) (services []Service, err error) {
+	filters := opts.filters
 	if filters == nil {
 		filters = r.opts.filters
 	}
@@ -551,8 +576,8 @@ func (r *reg) getinternalService(name string, serviceFilters ...Filter) (service
 	return
 }
 
-func (r *reg) GetServices(name string) ([]Service, error) {
-	return r.getinternalService(name)
+func (r *reg) GetServices(name string, opts ...func(*getServicesOptions)) ([]Service, error) {
+	return r.getinternalService(name, newGetServicesOptions(opts))
 }
 
 func (r *reg) subregister(msg *pubsub.PubsubMsg) {
