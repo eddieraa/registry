@@ -35,7 +35,7 @@ func (r *RegistryMock) Unregister(s Service) error {
 	}
 	return ErrNotImplemented
 }
-func (r *RegistryMock) GetServices(name string) ([]Service, error) {
+func (r *RegistryMock) GetServices(name string, opts ...func(*getServicesOptions)) ([]Service, error) {
 	if r.GetServicesImpl != nil {
 		return r.GetServicesImpl(name)
 	}
