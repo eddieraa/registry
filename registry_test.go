@@ -643,21 +643,21 @@ func TestGetServiceWithFilter(t *testing.T) {
 
 	ch := make(chan interface{})
 	r, _ := NewRegistry(WithPubsub(pb), WithTimeout(time.Millisecond*200))
-
-	go launchSubscriber(ch, "XXXXX", "999", "node", "primary")
+	serviceName := "TestGetServiceWithFilter"
+	go launchSubscriber(ch, serviceName, "999", "node", "primary")
 	assert.NotNil(t, r)
-	s, err := r.GetService("XXXXX")
+	s, err := r.GetService(serviceName)
 	assert.Nil(t, err)
 	assert.NotNil(t, s)
 	//close chanel trigger unsubscribe
 	close(ch)
 	time.Sleep(time.Millisecond * 30)
-	s, err = r.GetService("XXXXX")
+	s, err = r.GetService(serviceName)
 	assert.NotNil(t, err)
 	assert.Nil(t, s)
 	ch = make(chan interface{})
-	go launchSubscriber(ch, "XXXXX", "998", "node", "slv1")
-	s, err = r.GetService("XXXXX")
+	go launchSubscriber(ch, serviceName, "998", "node", "slv1")
+	s, err = r.GetService(serviceName)
 	assert.Nil(t, err)
 	assert.NotNil(t, s)
 
@@ -673,37 +673,37 @@ func TestGetServiceWithFilter(t *testing.T) {
 		}
 	}
 
-	s, err = r.GetService("XXXXX", filterNode("slv1"))
+	s, err = r.GetService(serviceName, filterNode("slv1"))
 	assert.Nil(t, err)
 	assert.NotNil(t, s)
 
-	s, err = r.GetService("XXXXX", filterNode("slv2"))
+	s, err = r.GetService(serviceName, filterNode("slv2"))
 	assert.NotNil(t, err)
 	assert.Nil(t, s)
 
-	go launchSubscriber(ch, "XXXXX", "997", "node", "slv2")
-	s, err = r.GetService("XXXXX", filterNode("slv2"))
+	go launchSubscriber(ch, serviceName, "997", "node", "slv2")
+	s, err = r.GetService(serviceName, filterNode("slv2"))
 	assert.Nil(t, err)
 	assert.NotNil(t, s)
 
 	go func() {
 		time.Sleep(150 * time.Millisecond)
-		launchSubscriber(ch, "XXXXX", "995", "node", "slv3")
+		launchSubscriber(ch, serviceName, "995", "node", "slv3")
 	}()
 
-	s, err = r.GetService("XXXXX")
+	s, err = r.GetService(serviceName)
 	assert.Nil(t, err)
 	assert.NotNil(t, s)
 
-	s, err = r.GetService("XXXXX", filterNode("slv2"))
+	s, err = r.GetService(serviceName, filterNode("slv2"))
 	assert.Nil(t, err)
 	assert.NotNil(t, s)
 	go func() {
 		time.Sleep(10 * time.Millisecond)
-		launchSubscriber(ch, "XXXXX", "992", "node", "slvxxxx")
+		launchSubscriber(ch, serviceName, "992", "node", "slvxxxx")
 	}()
 
-	s, err = r.GetService("XXXXX", filterNode("slv3"))
+	s, err = r.GetService(serviceName, filterNode("slv3"))
 	assert.Nil(t, err)
 	assert.NotNil(t, s)
 
