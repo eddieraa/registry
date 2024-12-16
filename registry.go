@@ -361,7 +361,7 @@ func NewRegistry(opts ...Option) (Registry, error) {
 		chFiredRegisteredService:        make(chan *Pong),
 		chStopChannelRegisteredServices: make(chan bool),
 		subscriptions:                   make([]pubsub.Subscription, 0),
-		log:                             logrus.New(),
+		log:                             log,
 	}
 
 	log.SetLevel(r.opts.loglevel)
