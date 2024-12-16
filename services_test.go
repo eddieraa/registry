@@ -4,9 +4,15 @@ import (
 	"testing"
 	"time"
 
+	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 )
 
+var log *logrus.Logger
+
+func init() {
+	log = logrus.New()
+}
 func pong(name, address string) *Pong {
 	return &Pong{Service: Service{Name: name, Address: address}}
 }
@@ -14,7 +20,7 @@ func pong2(name, address string, registered int64) *Pong {
 	return &Pong{Service: Service{Name: name, Address: address}, Timestamps: &Timestamps{Registered: registered, Duration: 5000}}
 }
 func TestLoadOrStore(t *testing.T) {
-	s := newServices()
+	s := newServices(log)
 	s.LoadOrStore(pong("service1", "localhost:4334"))
 	s.LoadOrStore(pong("service1", "localhost:4335"))
 	s.LoadOrStore(pong("service1", "localhost:4336"))
@@ -47,7 +53,7 @@ func TestLoadOrStore(t *testing.T) {
 }
 
 func TestRebuildCache(t *testing.T) {
-	s := newServices()
+	s := newServices(log)
 	s.LoadOrStore(pong("service1", "localhost:4334"))
 	s.LoadOrStore(pong("service1", "localhost:4335"))
 	pongs := s.GetServices("service1")
@@ -63,7 +69,7 @@ func TestRebuildCache(t *testing.T) {
 }
 
 func TestRebuildTestInParallele(t *testing.T) {
-	s := newServices()
+	s := newServices(log)
 	store := func() {
 		for n := 0; n < 100; n++ {
 			s.LoadOrStore(pong("service1", "localhost:4334"))

@@ -3,17 +3,18 @@ package registry
 import (
 	"sync"
 
-	log "github.com/sirupsen/logrus"
+	"github.com/sirupsen/logrus"
 )
 
 type services struct {
 	_cache map[string][]*Pong
 	m      sync.Map
 	mu     sync.Mutex
+	log    *logrus.Logger
 }
 
-func newServices() *services {
-	s := &services{_cache: make(map[string][]*Pong)}
+func newServices(log *logrus.Logger) *services {
+	s := &services{_cache: make(map[string][]*Pong), log: log}
 	return s
 }
 
@@ -24,12 +25,12 @@ func (s *services) Delete(p *Pong) {
 // DeleteByName delete service bye name with key is serviceName+serviceAddress
 func (s *services) DeleteByName(key string) {
 	if v, ok := s.m.Load(key); ok {
-		log.Debug("Delete ok ", key)
+		s.log.Debug("Delete ok ", key)
 		p := v.(*Pong)
 		s.m.Delete(key)
 		s.rebuildCache(p.Name)
 	} else {
-		log.Debug("Delete not found ", key)
+		s.log.Debug("Delete not found ", key)
 	}
 }
 
@@ -91,7 +92,7 @@ func (s *services) nbService(name string) (nb int) {
 	return
 }
 func (s *services) rebuildCache(name string) {
-	log.Debug("Rebuild cache for ", name)
+	s.log.Debug("Rebuild cache for ", name)
 
 	ref := s.getCache()
 	cache := make(map[string][]*Pong)
