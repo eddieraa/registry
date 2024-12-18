@@ -1,6 +1,7 @@
 package registry
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -562,21 +563,22 @@ func TestMarshal(t *testing.T) {
 
 func TestLocalhostOFilter(t *testing.T) {
 	reset()
+	name := "TestLocalhostOFilter"
 	r, _ := NewRegistry(WithPubsub(pb), AddObserveFilter(LocalhostOFilter()))
 	ch := make(chan interface{})
-	go launchSubscriber(ch, "test", "43")
+	go launchSubscriber(ch, name, "43")
 
-	s, err := r.GetService("test")
+	s, err := r.GetService(name)
 	close(ch)
 	assert.Nil(t, err)
 	assert.NotNil(t, s)
 	<-time.NewTimer(50 * time.Millisecond).C
-	s, err = r.GetService("test")
+	s, err = r.GetService(name)
 	assert.NotNil(t, err)
 	assert.Nil(t, s)
 	ch = make(chan interface{})
-	go launchSubscriber(ch, "test", "10.1.10.4:43")
-	s, err = r.GetService("test")
+	go launchSubscriber(ch, name, "10.1.10.4:43")
+	s, err = r.GetService(name)
 	assert.NotNil(t, err)
 	assert.Nil(t, s)
 }
@@ -818,4 +820,46 @@ func TestGetServicesWithNoWaitOK(t *testing.T) {
 	assert.Len(t, s, 1)
 	assert.Nil(t, err, ErrNotFound)
 	Close()
+}
+
+func TestGetServicesWithContext(t *testing.T) {
+	reset()
+	defer Close()
+	service := "TestGetServicesWithContext"
+	r, err := NewRegistry(WithPubsub(pb))
+	assert.Nil(t, err)
+	assert.NotNil(t, r)
+	chstop := make(chan interface{})
+	go launchSubscriber(chstop, service, "11")
+	ctx, fn := context.WithTimeout(context.TODO(), time.Second)
+	defer fn()
+	s, err := r.GetServices(service, WithContext(ctx))
+	assert.NotEmpty(t, s)
+	assert.Nil(t, err)
+}
+
+func TestGetServicesWithContextFail(t *testing.T) {
+	reset()
+	defer Close()
+	service := "TestGetServicesWithContextFail"
+	r, err := NewRegistry(WithPubsub(pb))
+	assert.Nil(t, err)
+	assert.NotNil(t, r)
+
+	ctx, fn := context.WithTimeout(context.TODO(), 50*time.Millisecond)
+	defer fn()
+	s, err := r.GetServices(service, WithContext(ctx), WithFilters(LocalhostFilter()))
+	assert.Empty(t, s)
+	assert.ErrorIs(t, err, ErrNotFound)
+}
+
+func TestGetDefault(t *testing.T) {
+	reset()
+	r, err := GetDefault()
+	assert.Nil(t, r)
+	assert.ErrorIs(t, err, ErrNoDefaultInstance)
+	SetDefault(WithPubsub(pb))
+	r, err = GetDefault()
+	assert.NotNil(t, r)
+	assert.Nil(t, err)
 }
