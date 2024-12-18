@@ -1,6 +1,7 @@
 package registry
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -139,6 +140,7 @@ type reg struct {
 type getServicesOptions struct {
 	nowait  bool
 	filters []Filter
+	ctx     context.Context
 }
 
 func NoWait() func(*getServicesOptions) {
@@ -150,6 +152,11 @@ func NoWait() func(*getServicesOptions) {
 func WithFilters(filters ...Filter) func(*getServicesOptions) {
 	return func(gso *getServicesOptions) {
 		gso.filters = filters
+	}
+}
+func WithContext(ctx context.Context) func(*getServicesOptions) {
+	return func(gso *getServicesOptions) {
+		gso.ctx = ctx
 	}
 }
 
@@ -567,7 +574,7 @@ func (r *reg) getinternalService(name string, opts *getServicesOptions) (service
 	if err = r.opts.pubsub.Pub(r.buildMessage("ping", name), nil); err == nil {
 		//create timeout if no service available
 		var serviceFound *Service
-		tk := time.NewTimer(r.opts.timeout)
+		tk := time.NewTimer(timeout(opts.ctx, r.opts.timeout))
 		select {
 		case <-tk.C:
 			break
@@ -582,6 +589,16 @@ func (r *reg) getinternalService(name string, opts *getServicesOptions) (service
 		}
 	}
 	return
+}
+func timeout(ctx context.Context, timeout time.Duration) time.Duration {
+	if ctx == nil {
+		return timeout
+	}
+	deadline, ok := ctx.Deadline()
+	if !ok {
+		return timeout
+	}
+	return time.Until(deadline)
 }
 
 func (r *reg) GetServices(name string, opts ...func(*getServicesOptions)) ([]Service, error) {
