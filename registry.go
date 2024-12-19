@@ -14,6 +14,28 @@ import (
 )
 
 // Registry Register, Unregister
+// Registry defines an interface for a service registry that allows for
+// registering, unregistering, and querying services. It also provides
+// methods for observing services and managing their statuses.
+//
+// Methods:
+//   - Register(s Service) (FnUnregister, error): Registers a service and returns
+//     a function to unregister the service along with any error encountered.
+//   - Unregister(s Service) error: Unregisters a service and returns any error
+//     encountered.
+//   - GetServices(name string, options ...func(*getServicesOptions)) ([]Service, error):
+//     Retrieves a list of services by name with optional filtering options.
+//   - GetService(name string, filters ...Filter) (*Service, error): Retrieves a
+//     single service by name with optional filters.
+//   - Observe(serviceName string) error: Starts observing a service by name and
+//     returns any error encountered.
+//   - GetObservedServiceNames() []string: Returns a list of names of observed
+//     services.
+//   - Subscribers() []string: Returns a list of subscribers.
+//   - Close() error: Closes the registry and returns any error encountered.
+//   - SetServiceStatus(s Service, status Status) error: Sets the status of a
+//     service and returns any error encountered.
+//   - GetRegisteredServices() []Service: Returns a list of all registered services.
 type Registry interface {
 	Register(s Service) (FnUnregister, error)
 	Unregister(s Service) error
@@ -38,7 +60,7 @@ const (
 func (s Status) String() string {
 	return [...]string{"passing", "warning", "critical"}[s]
 }
-func (s *Status) FromString(status string) Status {
+func (s Status) FromString(status string) Status {
 	return map[string]Status{"": Passing, "passing": Passing, "warning": Warning, "critical": Critical}[status]
 }
 func (s Status) MarshalJSON() ([]byte, error) {
@@ -181,7 +203,7 @@ func (r *reg) buildMessage(message, service string) string {
 }
 
 func (s Service) String() string {
-	due := s.DueTime().Sub(time.Now())
+	due := time.Until(s.DueTime())
 	return fmt.Sprintf("Name: %s Addr: %s Host: %s URL: %s Timestamps in due time in %d millis", s.Name, s.Address, s.Host, s.URL, int(due.Milliseconds()))
 }
 
@@ -212,7 +234,8 @@ func (r *reg) Register(s Service) (f FnUnregister, err error) {
 	}
 	p := &Pong{Service: s, Timestamps: &Timestamps{Registered: time.Now().UnixNano(), Duration: int(r.opts.registerInterval.Milliseconds())}}
 	if err = r.subToPing(p); err != nil {
-		return
+		r.log.Errorf("Failed to subscribe to ping for service %s: %v", s.Name, err)
+		return nil, err
 	}
 
 	r.registeredServicesMap.Store(s.Name+s.Address, p)
@@ -299,6 +322,9 @@ func (r *reg) checkDueTime() {
 }
 
 func (r *reg) Unregister(s Service) (err error) {
+	if _, ok := r.registeredServicesMap.Load(s.Name + s.Address); !ok {
+		return ErrNotFound
+	}
 	var data []byte
 	var topic string
 	data, err = json.Marshal(s)
@@ -309,7 +335,6 @@ func (r *reg) Unregister(s Service) (err error) {
 		r.log.Infof("%s (%s) host: %s", topic, s.Address, s.Host)
 	}
 	return
-
 }
 
 // GetObservedServiceNames return subscribed service names
@@ -514,11 +539,11 @@ func chainFilters(pongs []*Pong, filters ...Filter) []Service {
 // observerGetOrCreate get observers entry if not exist create empty observer pointer
 func (r *reg) observerGetOrCreate(key string) (o *observe, alreadyExist bool) {
 	r.observersMu.Lock()
+	defer r.observersMu.Unlock()
 	if o, alreadyExist = r._observers[key]; !alreadyExist {
 		o = &observe{}
 		r._observers[key] = o
 	}
-	r.observersMu.Unlock()
 	return
 }
 
@@ -530,6 +555,18 @@ func newGetServicesOptions(options []func(*getServicesOptions)) *getServicesOpti
 	return opts
 }
 
+// getinternalService retrieves a list of services by name, applying optional filters.
+// If the service is already registered, it returns the filtered services immediately.
+// If the service is not registered, it observes the service and waits for it to be registered,
+// applying filters and returning the service if it matches the filters.
+//
+// Parameters:
+// - name: The name of the service to retrieve.
+// - opts: Options for retrieving the service, including filters and timeout settings.
+//
+// Returns:
+// - services: A list of services that match the specified name and filters.
+// - err: An error if the service is not found or if there is an issue with the retrieval process.
 func (r *reg) getinternalService(name string, opts *getServicesOptions) (services []Service, err error) {
 	filters := opts.filters
 	if filters == nil {
