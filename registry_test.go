@@ -79,8 +79,7 @@ func TestChainFilter(t *testing.T) {
 	logrus.Info("\n", chainFilters(pongs, f), "\n", chainFilters(pongs, f), "\n", chainFilters(pongs, f), "\n", chainFilters(pongs, f))
 
 }
-
-func launchSubscriber(chstop chan interface{}, name string, addr string, kv ...string) {
+func launchSubscriber3(chstop chan interface{}, chend chan interface{}, name string, addr string, kv ...string) {
 	reg, _ := NewRegistry(WithPubsub(pb), WithRegisterInterval(500*time.Millisecond))
 	myaddr := addr
 	host := ""
@@ -104,6 +103,13 @@ func launchSubscriber(chstop chan interface{}, name string, addr string, kv ...s
 		fn()
 	}
 	reg.Close()
+	close(chend)
+}
+
+func launchSubscriber(chstop chan interface{}, name string, addr string, kv ...string) {
+	chend := make(chan interface{})
+	launchSubscriber3(chstop, chend, name, addr, kv...)
+	<-chend
 }
 
 func TestRegWithDefaultInstance(t *testing.T) {
@@ -646,14 +652,15 @@ func TestGetServiceWithFilter(t *testing.T) {
 	ch := make(chan interface{})
 	r, _ := NewRegistry(WithPubsub(pb), WithTimeout(time.Millisecond*200))
 	serviceName := "TestGetServiceWithFilter"
-	go launchSubscriber(ch, serviceName, "999", "node", "primary")
+	chend := make(chan interface{})
+	go launchSubscriber3(ch, chend, serviceName, "999", "node", "primary")
 	assert.NotNil(t, r)
 	s, err := r.GetService(serviceName)
 	assert.Nil(t, err)
 	assert.NotNil(t, s)
 	//close chanel trigger unsubscribe
 	close(ch)
-	time.Sleep(time.Millisecond * 30)
+	<-chend
 	s, err = r.GetService(serviceName)
 	assert.NotNil(t, err)
 	assert.Nil(t, s)
