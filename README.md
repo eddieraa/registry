@@ -2,41 +2,41 @@
 
 [![License Apache 2](https://img.shields.io/badge/License-Apache2-blue.svg)](https://www.apache.org/licenses/LICENSE-2.0)
 
-This first version service registry use nats (https://nats.io/) or reids (https://redis.io/) to implement a service registry
-You just need to start nats before using this service registry
+This first version service registry uses NATS (https://nats.io/) or Redis (https://redis.io/) to implement a service registry.
+You just need to start NATS before using this service registry.
 
-The project is still under development and is not ready for production. 
+The project is still under development and is not ready for production.
 
-A java [implentation](https://github.com/eddieraa/registry-java) exist
+A Java [implementation](https://github.com/eddieraa/registry-java) exists.
 
-## Simple to use: 
-API is simple to use, simple to understand. No required external installation.
+## Simple to use:
+The API is simple to use and understand. No external installation is required.
 No configuration file is required.
-- Connect: `registry.Connect(registry.Nats(c))` init the service both on the client/server side and return registry service instance.
-- Register: `reg.Register(registry.Service{Name: "httptest", URL: "http://localhost:8083/test"})` register you service on the service side.
-- GetService: `reg.GetService("myservice")` on the client side
-- Unregister: `reg.Unregister("myservice")` on the service side
-- Close : `reg.Close()` on the server side 'Close' function deregisters all registered services. On the client and service side, unsubsribe to subscriptions
+- Connect: `registry.Connect(registry.Nats(c))` initializes the service both on the client/server side and returns a registry service instance.
+- Register: `reg.Register(registry.Service{Name: "httptest", URL: "http://localhost:8083/test"})` registers your service on the service side.
+- GetService: `reg.GetService("myservice")` on the client side.
+- Unregister: `reg.Unregister("myservice")` on the service side.
+- Close: `reg.Close()` on the server side. The 'Close' function deregisters all registered services. On the client and service side, it unsubscribes from subscriptions.
 
 ## Safe
 
-Can be used in concurrent context. Singleton design pattern is used.
-The first called to `registry.Connect(registry.Nats(c), registry.Timeout(100*time.MilliSecond))` create instance of registry service. 
-And then you can get an instance of registry service without argument `reg, _ := registry.Connect()` 
+Can be used in a concurrent context. Singleton design pattern is used.
+The first call to `registry.Connect(registry.Nats(c), registry.Timeout(100*time.Millisecond))` creates an instance of the registry service.
+And then you can get an instance of the registry service without arguments `reg, _ := registry.Connect()`.
 
 ## Fast
-This "service registry" uses a local cache as well as the pub / sub pattern. The registration of a new service is in real time.
+This "service registry" uses a local cache as well as the pub/sub pattern. The registration of a new service is in real time.
 When a new service registers, all clients are notified in real time and update their cache.
 
 ## Light
-The project uses very few external dependencies. There is no service to install. Just your favorite pub/sub implementation (NATS)
+The project uses very few external dependencies. There is no service to install. Just your favorite pub/sub implementation (NATS).
 
 ## Multi-tenant
-Multi-tenant support is planned. The tool is based on pub / sub, each message can be pre-fixed by a text of your choice.
+Multi-tenant support is planned. The tool is based on pub/sub, and each message can be prefixed by a text of your choice.
 
-## Exemple
+## Example
 
-on the server side :
+On the server side:
 ```golang
     package main
 
@@ -86,7 +86,7 @@ func main() {
     
 ```
 
-On the client side :
+On the client side:
 ```golang
 package main
 
