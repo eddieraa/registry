@@ -203,7 +203,7 @@ func (r *reg) buildMessage(message, service string) string {
 }
 
 func (s Service) String() string {
-	due := s.DueTime().Sub(time.Now())
+	due := time.Until(s.DueTime())
 	return fmt.Sprintf("Name: %s Addr: %s Host: %s URL: %s Timestamps in due time in %d millis", s.Name, s.Address, s.Host, s.URL, int(due.Milliseconds()))
 }
 

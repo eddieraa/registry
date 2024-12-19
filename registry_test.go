@@ -482,7 +482,7 @@ func TestOptsTimeout(t *testing.T) {
 	s, err := r.GetService("testtimeout")
 	assert.NotNil(t, err)
 	assert.Empty(t, s)
-	d := time.Now().Sub(now) - 50*time.Millisecond
+	d := time.Since(now) - 50*time.Millisecond
 
 	assert.Greater(t, int64(d), int64(0))
 	Close()
