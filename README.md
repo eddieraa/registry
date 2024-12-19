@@ -1,6 +1,7 @@
 # Simple Service registry based on pub/sub pattern
 
 [![License Apache 2](https://img.shields.io/badge/License-Apache2-blue.svg)](https://www.apache.org/licenses/LICENSE-2.0)
+[![codecov](https://codecov.io/github/eddieraa/registry/branch/copilotReview/graph/badge.svg?token=6D2JTBBL0P)](https://codecov.io/github/eddieraa/registry)
 
 This first version service registry uses NATS (https://nats.io/) or Redis (https://redis.io/) to implement a service registry.
 You just need to start NATS before using this service registry.
