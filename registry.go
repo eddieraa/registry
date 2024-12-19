@@ -60,7 +60,7 @@ const (
 func (s Status) String() string {
 	return [...]string{"passing", "warning", "critical"}[s]
 }
-func (s *Status) FromString(status string) Status {
+func (s Status) FromString(status string) Status {
 	return map[string]Status{"": Passing, "passing": Passing, "warning": Warning, "critical": Critical}[status]
 }
 func (s Status) MarshalJSON() ([]byte, error) {
@@ -234,7 +234,8 @@ func (r *reg) Register(s Service) (f FnUnregister, err error) {
 	}
 	p := &Pong{Service: s, Timestamps: &Timestamps{Registered: time.Now().UnixNano(), Duration: int(r.opts.registerInterval.Milliseconds())}}
 	if err = r.subToPing(p); err != nil {
-		return
+		r.log.Errorf("Failed to subscribe to ping for service %s: %v", s.Name, err)
+		return nil, err
 	}
 
 	r.registeredServicesMap.Store(s.Name+s.Address, p)
@@ -321,6 +322,9 @@ func (r *reg) checkDueTime() {
 }
 
 func (r *reg) Unregister(s Service) (err error) {
+	if _, ok := r.registeredServicesMap.Load(s.Name + s.Address); !ok {
+		return ErrNotFound
+	}
 	var data []byte
 	var topic string
 	data, err = json.Marshal(s)
@@ -331,7 +335,6 @@ func (r *reg) Unregister(s Service) (err error) {
 		r.log.Infof("%s (%s) host: %s", topic, s.Address, s.Host)
 	}
 	return
-
 }
 
 // GetObservedServiceNames return subscribed service names
@@ -536,11 +539,11 @@ func chainFilters(pongs []*Pong, filters ...Filter) []Service {
 // observerGetOrCreate get observers entry if not exist create empty observer pointer
 func (r *reg) observerGetOrCreate(key string) (o *observe, alreadyExist bool) {
 	r.observersMu.Lock()
+	defer r.observersMu.Unlock()
 	if o, alreadyExist = r._observers[key]; !alreadyExist {
 		o = &observe{}
 		r._observers[key] = o
 	}
-	r.observersMu.Unlock()
 	return
 }
 
