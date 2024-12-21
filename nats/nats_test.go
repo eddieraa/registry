@@ -1,106 +1,99 @@
-//go:build integration
-// +build integration
-
 package nats
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
 	"github.com/eddieraa/registry"
+	"github.com/eddieraa/registry/pubsub"
+	"github.com/nats-io/nats-server/v2/server"
+	natsserver "github.com/nats-io/nats-server/v2/test"
 	"github.com/nats-io/nats.go"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 )
 
-func Test1(t *testing.T) {
-	logrus.SetLevel(logrus.DebugLevel)
-	c, err := nats.Connect("localhost:4222")
+const TEST_PORT = 8369
+
+func RunServerOnPort(port int) *server.Server {
+	opts := natsserver.DefaultTestOptions
+	opts.Port = port
+	return RunServerWithOptions(&opts)
+}
+
+func RunServerWithOptions(opts *server.Options) *server.Server {
+	return natsserver.RunServer(opts)
+}
+
+func TestSetDefault(t *testing.T) {
+	srv := RunServerOnPort(TEST_PORT)
+	defer srv.Shutdown()
+	natsURL := fmt.Sprintf("localhost:%d", TEST_PORT)
+	c, err := nats.Connect(natsURL)
 	if err != nil {
 		t.Fatal("Could not connect to nats ", err)
 	}
-	_, err = registry.SetDefault(Nats(c), registry.WithTimeout(3000*time.Millisecond))
+	r, err := SetDefault(c, registry.WithTimeout(3000*time.Millisecond))
 	if err != nil {
 		t.Fatal("Could not open registry session: ", err)
 	}
-	registry.Observe("*")
-	services, err := registry.GetServices("httptest")
+	r.Close()
+}
+
+func TestNewPub(t *testing.T) {
+	srv := RunServerOnPort(TEST_PORT)
+	defer srv.Shutdown()
+	natsURL := fmt.Sprintf("localhost:%d", TEST_PORT)
+	c, err := nats.Connect(natsURL)
 	if err != nil {
-		t.Error("Could not get services ", err)
-		t.Fail()
-
+		t.Fatal("Could not connect to nats ", err)
 	}
-	assert.NotNil(t, services)
-	assert.Equal(t, 2, len(services))
-	logrus.Infof("Services %s", services)
-	<-time.Tick(time.Second * 5)
-	services, _ = registry.GetServices("httptest")
-	logrus.Info("nb services ", len(services))
-	<-time.Tick(time.Second * 5)
-	s, _ := registry.GetService("httptest", nil)
-	logrus.Infof("Get service %s", s)
-	services, _ = registry.GetServices("httptest")
-	logrus.Info("nb services ", len(services))
-	<-time.Tick(time.Second * 5)
-	services, _ = registry.GetServices("httptest")
-	logrus.Info("nb services ", len(services))
-	<-time.Tick(time.Second * 5)
-	services, _ = registry.GetServices("httptest")
-	logrus.Info("nb services ", len(services))
-	<-time.Tick(time.Second * 5)
-	services, _ = registry.GetServices("httptest")
-	logrus.Info("nb services ", len(services))
-	<-time.Tick(time.Second * 5)
-	services, _ = registry.GetServices("httptest")
-	logrus.Info("nb services ", len(services))
-	services, _ = registry.GetServices("httptest")
-	logrus.Info("nb services ", len(services))
-	<-time.Tick(time.Second * 5)
-	services, _ = registry.GetServices("httptest")
-	logrus.Info("nb services ", len(services))
-
-	registry.Close()
-	c.Close()
+	p := NewPub(c)
+	p.Stop()
+	goMessage := false
+	s, err := p.Sub("test", func(m *pubsub.PubsubMsg) {
+		fmt.Println("Got message ", m)
+		goMessage = true
+	})
+	assert.Nil(t, err)
+	assert.False(t, goMessage)
+	assert.Equal(t, "test", s.Subject())
+	defer s.Unsub()
+	err = p.Pub("test", []byte("hello"))
+	assert.Nil(t, err)
+	time.Sleep(100 * time.Millisecond)
+	assert.True(t, goMessage)
 
 }
 
-func TestLB(t *testing.T) {
-	c, err := nats.Connect("localhost:4222")
-	if err != nil {
-		t.Fatal("Could not connect to nats ", err)
-	}
-	r, err := registry.SetDefault(Nats(c), registry.WithTimeout(3000*time.Millisecond), registry.AddFilter(registry.LoadBalanceFilter()))
-	if err != nil {
-		t.Fatal("Could not open registry session: ", err)
-	}
-	name := "httptest"
-	var s *registry.Service
+func TestSetLogger(t *testing.T) {
 
-	s, err = registry.GetService(name)
-	logrus.Infof("Service %s", s)
+	SetLogLevel(logrus.DebugLevel)
+	assert.Equal(t, logrus.DebugLevel, log.Level)
+}
 
-	r.Close()
-	r, err = registry.SetDefault(Nats(c), registry.WithTimeout(3000*time.Millisecond), registry.AddFilter(registry.LoadBalanceFilter()))
-	if err != nil {
-		t.Fatal("Could not open registry session: ", err)
+func TestWithNatsURL(t *testing.T) {
+
+	natsURL := fmt.Sprintf("localhost:%d", TEST_PORT)
+	p := &pb{}
+	opts := &registry.Options{
+		KVOption: make(map[string]interface{}),
 	}
+	o := WithNatsUrl(natsURL)
+	o(opts)
+	p.Configure(opts)
+	assert.Equal(t, natsURL, p.natsUrls)
 
-	s, err = registry.GetService(name)
-	logrus.Infof("Service %s", s.Address)
-	s, err = registry.GetService(name)
-	logrus.Infof("Service %s", s.Address)
-	s, err = registry.GetService(name)
-	logrus.Infof("Service %s", s.Address)
-	s, err = registry.GetService(name)
-	logrus.Infof("Service %s", s.Address)
-	s, err = registry.GetService(name)
-	logrus.Infof("Service %s", s.Address)
-	s, err = registry.GetService(name)
-	logrus.Infof("Service %s", s.Address)
-	s, err = registry.GetService(name)
-	logrus.Infof("Service %s", s.Address)
-	s, err = registry.GetService(name)
-	logrus.Infof("Service %s", s.Address)
-	s, err = registry.GetService(name)
-	logrus.Infof("Service %s", s.Address)
+	var srv *server.Server
+	defer func() {
+		if srv != nil {
+			srv.Shutdown()
+		}
+	}()
+	go func() {
+		srv = RunServerOnPort(TEST_PORT)
+	}()
+	p.Sub("xxxxx", func(m *pubsub.PubsubMsg) {})
+
 }
