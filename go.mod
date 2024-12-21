@@ -2,8 +2,6 @@ module github.com/eddieraa/registry
 
 go 1.22
 
-toolchain go1.23.4
-
 require (
 	github.com/go-redis/redis/v8 v8.11.5
 	github.com/nats-io/nats-server/v2 v2.10.24
