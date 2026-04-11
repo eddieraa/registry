@@ -20,8 +20,6 @@ import (
 )
 
 // create in memory pubsub
-var pb = test.NewPubSub()
-
 //var pb pubsub.Pubsub
 
 func init() {
@@ -79,7 +77,7 @@ func TestChainFilter(t *testing.T) {
 	logrus.Info("\n", chainFilters(pongs, f), "\n", chainFilters(pongs, f), "\n", chainFilters(pongs, f), "\n", chainFilters(pongs, f))
 
 }
-func launchSubscriber3(chstop chan interface{}, chend chan interface{}, name string, addr string, kv ...string) {
+func launchSubscriber3(chstop chan interface{}, chend chan interface{}, pb pubsub.Pubsub, name string, addr string, kv ...string) {
 	reg, _ := NewRegistry(WithPubsub(pb), WithRegisterInterval(500*time.Millisecond))
 	myaddr := addr
 	host := ""
@@ -106,22 +104,23 @@ func launchSubscriber3(chstop chan interface{}, chend chan interface{}, name str
 	close(chend)
 }
 
-func launchSubscriber(chstop chan interface{}, name string, addr string, kv ...string) {
+func launchSubscriber(chstop chan interface{}, pb pubsub.Pubsub, name string, addr string, kv ...string) {
 	chend := make(chan interface{})
-	launchSubscriber3(chstop, chend, name, addr, kv...)
+	launchSubscriber3(chstop, chend, pb, name, addr, kv...)
 	<-chend
 }
 
 func TestRegWithDefaultInstance(t *testing.T) {
+	pb := test.NewPubSub()
 	r, _ := NewRegistry(WithPubsub(pb), WithRegisterInterval(50*time.Millisecond))
 	s, err := r.GetService("test")
 	assert.Nil(t, s)
 	assert.NotNil(t, err)
 
 	chstop := make(chan interface{})
-	go launchSubscriber(chstop, "tests2", "1")
-	go launchSubscriber(chstop, "tests1", "2")
-	go launchSubscriber(chstop, "test", "3")
+	go launchSubscriber(chstop, pb, "tests2", "1")
+	go launchSubscriber(chstop, pb, "tests1", "2")
+	go launchSubscriber(chstop, pb, "test", "3")
 
 	s, err = r.GetService("test")
 	assert.Nil(t, err)
@@ -134,19 +133,20 @@ func TestRegWithDefaultInstance(t *testing.T) {
 }
 
 func TestWithLB(t *testing.T) {
-	reset()
+	pb := test.NewPubSub()
+	reset(pb)
 	r, err := NewRegistry(WithPubsub(pb))
 	assert.Nil(t, err)
 	err = r.Observe("myservice")
 	assert.Nil(t, err)
 	chstop := make(chan interface{})
-	go launchSubscriber(chstop, "myservice", "11")
-	go launchSubscriber(chstop, "myservice", "12")
-	go launchSubscriber(chstop, "myservice", "13")
-	go launchSubscriber(chstop, "myservice", "14")
-	go launchSubscriber(chstop, "myservice", "15")
-	go launchSubscriber(chstop, "myservice", "16")
-	go launchSubscriber(chstop, "myservice", "17")
+	go launchSubscriber(chstop, pb, "myservice", "11")
+	go launchSubscriber(chstop, pb, "myservice", "12")
+	go launchSubscriber(chstop, pb, "myservice", "13")
+	go launchSubscriber(chstop, pb, "myservice", "14")
+	go launchSubscriber(chstop, pb, "myservice", "15")
+	go launchSubscriber(chstop, pb, "myservice", "16")
+	go launchSubscriber(chstop, pb, "myservice", "17")
 	<-time.NewTimer(time.Millisecond * 100).C
 	services, err := r.GetServices("myservice")
 	assert.Equal(t, 7, len(services))
@@ -176,9 +176,10 @@ func TestWithLB(t *testing.T) {
 }
 
 func TestUnregister(t *testing.T) {
+	pb := test.NewPubSub()
 	r, _ := NewRegistry(WithPubsub(pb))
 	chstop := make(chan interface{})
-	go launchSubscriber(chstop, "testunsub", "1")
+	go launchSubscriber(chstop, pb, "testunsub", "1")
 	s, _ := r.GetService("testunsub")
 	assert.NotNil(t, s)
 	chstop <- true
@@ -190,6 +191,7 @@ func TestUnregister(t *testing.T) {
 }
 
 func TestClose(t *testing.T) {
+	pb := test.NewPubSub()
 	r, _ := NewRegistry(WithPubsub(pb))
 	r.Register(Service{Name: "ppo", Address: "host:345"})
 	r.Register(Service{Name: "ppo", Address: "host:346"})
@@ -198,6 +200,7 @@ func TestClose(t *testing.T) {
 }
 
 func TestObserveEvent(t *testing.T) {
+	pb := test.NewPubSub()
 	chobs := make(chan Event)
 	ov := func(s Service, ev Event) {
 		chobs <- ev
@@ -206,7 +209,7 @@ func TestObserveEvent(t *testing.T) {
 	r, _ := NewRegistry(WithPubsub(pb), WithObserverEvent(ov))
 	r.Observe("testservice")
 	chstop := make(chan interface{})
-	go launchSubscriber(chstop, "testservice", ":1")
+	go launchSubscriber(chstop, pb, "testservice", ":1")
 	ev := <-chobs
 	assert.Equal(t, EventRegister, ev)
 	chstop <- true
@@ -216,6 +219,7 @@ func TestObserveEvent(t *testing.T) {
 }
 
 func TestObserveEventWithDefault(t *testing.T) {
+	pb := test.NewPubSub()
 	chobs := make(chan Event)
 	ov := func(s Service, ev Event) {
 		chobs <- ev
@@ -224,7 +228,7 @@ func TestObserveEventWithDefault(t *testing.T) {
 	SetDefault(WithPubsub(pb), WithObserverEvent(ov))
 	Observe("testservice2")
 	chstop := make(chan interface{})
-	go launchSubscriber(chstop, "testservice2", "1")
+	go launchSubscriber(chstop, pb, "testservice2", "1")
 	ev := <-chobs
 	assert.Equal(t, EventRegister, ev)
 	chstop <- true
@@ -233,7 +237,7 @@ func TestObserveEventWithDefault(t *testing.T) {
 	Close()
 }
 
-func launchSubscriber2(chstop chan interface{}, s Service) {
+func launchSubscriber2(chstop chan interface{}, pb pubsub.Pubsub, s Service) {
 	reg, _ := NewRegistry(WithPubsub(pb), WithRegisterInterval(20*time.Millisecond))
 
 	reg.Register(s)
@@ -245,6 +249,7 @@ func launchSubscriber2(chstop chan interface{}, s Service) {
 }
 
 func TestParalleleSetDefaulInstance(t *testing.T) {
+	pb := test.NewPubSub()
 	f := func() {
 		SetDefault(WithPubsub(pb))
 		//Close()
@@ -256,18 +261,19 @@ func TestParalleleSetDefaulInstance(t *testing.T) {
 }
 
 func TestCheckDueTime(t *testing.T) {
+	pb := test.NewPubSub()
 	r, _ := NewRegistry(WithPubsub(pb))
 	chstop := make(chan interface{})
-	go launchSubscriber(chstop, "checkdutime", "2344")
-	go launchSubscriber(chstop, "checkdutime", "2345")
-	go launchSubscriber(chstop, "checkdutime", "2346")
-	go launchSubscriber(chstop, "checkdutime", "2347")
-	go launchSubscriber(chstop, "checkdutime", "2348")
-	go launchSubscriber(chstop, "checkdutime", "2349")
-	go launchSubscriber(chstop, "checkdutime", "23410")
-	go launchSubscriber(chstop, "checkdutime", "23411")
-	go launchSubscriber(chstop, "checkdutime", "23412")
-	go launchSubscriber(chstop, "checkdutime", "234513")
+	go launchSubscriber(chstop, pb, "checkdutime", "2344")
+	go launchSubscriber(chstop, pb, "checkdutime", "2345")
+	go launchSubscriber(chstop, pb, "checkdutime", "2346")
+	go launchSubscriber(chstop, pb, "checkdutime", "2347")
+	go launchSubscriber(chstop, pb, "checkdutime", "2348")
+	go launchSubscriber(chstop, pb, "checkdutime", "2349")
+	go launchSubscriber(chstop, pb, "checkdutime", "23410")
+	go launchSubscriber(chstop, pb, "checkdutime", "23411")
+	go launchSubscriber(chstop, pb, "checkdutime", "23412")
+	go launchSubscriber(chstop, pb, "checkdutime", "234513")
 	s, _ := r.GetService("checkdutime")
 	assert.NotNil(t, s)
 	<-time.NewTimer(50 * time.Millisecond).C
@@ -278,6 +284,7 @@ func TestCheckDueTime(t *testing.T) {
 }
 
 func TestFilters(t *testing.T) {
+	pb := test.NewPubSub()
 	//test chainFilter
 	name := "testfilter"
 	pongs := []*Pong{
@@ -291,11 +298,11 @@ func TestFilters(t *testing.T) {
 	ser := chainFilters(pongs, LocalhostFilter())
 	assert.NotNil(t, ser)
 	assert.Empty(t, ser)
-	reset()
+	reset(pb)
 
 	chstop := make(chan interface{})
-	go launchSubscriber(chstop, name, "10.11.1.11:5454")
-	go launchSubscriber(chstop, name, "10.11.1.12:5454")
+	go launchSubscriber(chstop, pb, name, "10.11.1.11:5454")
+	go launchSubscriber(chstop, pb, name, "10.11.1.12:5454")
 	r, _ := NewRegistry(WithPubsub(pb), AddFilter(LocalhostFilter()))
 	services, err := r.GetService(name)
 	assert.Nil(t, services)
@@ -304,10 +311,13 @@ func TestFilters(t *testing.T) {
 }
 
 func TestPersoFilter(t *testing.T) {
+	pb := test.NewPubSub()
 	name := "testpersofilter"
-	chstop := make(chan interface{})
-	go launchSubscriber(chstop, name, "1")
-	go launchSubscriber(chstop, name, "2")
+	chstop := make(chan interface{}, 2)
+	chend1 := make(chan interface{})
+	chend2 := make(chan interface{})
+	go launchSubscriber3(chstop, chend1, pb, name, "1")
+	go launchSubscriber3(chstop, chend2, pb, name, "2")
 	filter := func(services []*Pong) []*Pong {
 		res := []*Pong{}
 		for _, s := range services {
@@ -322,6 +332,8 @@ func TestPersoFilter(t *testing.T) {
 	assert.NotNil(t, s)
 	assert.True(t, strings.HasSuffix(s.Address, "2"))
 	close(chstop)
+	<-chend1
+	<-chend2
 	Close()
 }
 func TestPongToString(t *testing.T) {
@@ -337,6 +349,7 @@ func TestPongMarshal(t *testing.T) {
 }
 
 func TestErrRegister(t *testing.T) {
+	pb := test.NewPubSub()
 	test.GetServer().Pause()
 	defer test.GetServer().Resume()
 
@@ -348,6 +361,7 @@ func TestErrRegister(t *testing.T) {
 }
 
 func TestSubToPing(t *testing.T) {
+	pb := test.NewPubSub()
 	service := "subtoping"
 	test.GetServer().Resume()
 	rdefault, _ := NewRegistry(WithPubsub(pb))
@@ -363,12 +377,14 @@ func TestSubToPing(t *testing.T) {
 	Close()
 }
 func TestDueTime(t *testing.T) {
-	reset()
+	pb := test.NewPubSub()
+	reset(pb)
+	defer reset(pb)
 	service := "service-checkduetime"
 	test.GetServer().Resume()
 	r, _ := NewRegistry(WithPubsub(pb), WithRegisterInterval(20*time.Millisecond), WithTimeout(60*time.Millisecond))
 	ch := make(chan interface{})
-	go launchSubscriber(ch, service, "h:43")
+	go launchSubscriber(ch, pb, service, "h:43")
 	s, _ := r.GetService(service)
 	assert.NotNil(t, s)
 	test.GetServer().Pause()
@@ -378,10 +394,11 @@ func TestDueTime(t *testing.T) {
 	assert.Nil(t, s)
 
 	close(ch)
-	reset()
+
 }
 
 func TestMainTopic(t *testing.T) {
+	pb := test.NewPubSub()
 	r, _ := NewRegistry(WithPubsub(pb), WithMainTopic("maintopic"))
 	assert.Equal(t, "maintopic.toto.titi", r.(*reg).buildMessage("toto", "titi"))
 	r.Close()
@@ -389,18 +406,19 @@ func TestMainTopic(t *testing.T) {
 }
 
 func TestGetSubscribers(t *testing.T) {
-	reset()
+	pb := test.NewPubSub()
+	reset(pb)
 	r, err := NewRegistry(WithPubsub(pb))
 
 	assert.Nil(t, err)
 	services := r.Subscribers()
 	assert.Empty(t, services)
 	ch := make(chan interface{})
-	go launchSubscriber(ch, "testregistered.s1", "h:43")
-	go launchSubscriber(ch, "testregistered.s1", "h:44")
-	go launchSubscriber(ch, "testregistered.s2", "h:43")
-	go launchSubscriber(ch, "testregistered.s3", "h:43")
-	go launchSubscriber(ch, "testregistered.s4", "h:43")
+	go launchSubscriber(ch, pb, "testregistered.s1", "h:43")
+	go launchSubscriber(ch, pb, "testregistered.s1", "h:44")
+	go launchSubscriber(ch, pb, "testregistered.s2", "h:43")
+	go launchSubscriber(ch, pb, "testregistered.s3", "h:43")
+	go launchSubscriber(ch, pb, "testregistered.s4", "h:43")
 	r.Observe("testregistered.s1")
 	services = r.Subscribers()
 	assert.Equal(t, 1, len(services))
@@ -416,17 +434,18 @@ func TestGetSubscribers(t *testing.T) {
 }
 
 func TestGetSubscribers2(t *testing.T) {
-	reset()
+	pb := test.NewPubSub()
+	reset(pb)
 	r, err := NewRegistry(WithPubsub(pb))
 	assert.Nil(t, err)
 	services := r.Subscribers()
 	assert.Empty(t, services)
 	ch := make(chan interface{})
-	go launchSubscriber(ch, "testregistered2.s1", "h:43")
-	go launchSubscriber(ch, "testregistered2.s1", "h:44")
-	go launchSubscriber(ch, "testregistered2.s2", "h:43")
-	go launchSubscriber(ch, "testregistered2.s3", "h:43")
-	go launchSubscriber(ch, "testregistered2.s4", "h:43")
+	go launchSubscriber(ch, pb, "testregistered2.s1", "h:43")
+	go launchSubscriber(ch, pb, "testregistered2.s1", "h:44")
+	go launchSubscriber(ch, pb, "testregistered2.s2", "h:43")
+	go launchSubscriber(ch, pb, "testregistered2.s3", "h:43")
+	go launchSubscriber(ch, pb, "testregistered2.s4", "h:43")
 	r.Observe("testregistered2.*")
 	<-time.NewTimer(1000 * time.Millisecond).C
 	services = r.Subscribers()
@@ -466,7 +485,7 @@ func TestFindFreePort(t *testing.T) {
 	assert.Empty(t, addr)
 }
 
-func reset() {
+func reset(pb pubsub.Pubsub) {
 	Close()
 	test.GetServer().Resume()
 	debug := pb.(test.Debug)
@@ -475,7 +494,8 @@ func reset() {
 	debug.CallbackSub(nil)
 }
 func TestOptsTimeout(t *testing.T) {
-	reset()
+	pb := test.NewPubSub()
+	reset(pb)
 	mypb := test.NewPubSub()
 	r, _ := NewRegistry(WithPubsub(mypb), WithTimeout(50*time.Millisecond))
 	now := time.Now()
@@ -489,7 +509,8 @@ func TestOptsTimeout(t *testing.T) {
 }
 
 func TestAddObserveFilter(t *testing.T) {
-	reset()
+	pb := test.NewPubSub()
+	reset(pb)
 	of := func(p *Pong) (res bool) {
 		if strings.HasPrefix(p.Address, "localhost:") {
 			res = true
@@ -499,10 +520,10 @@ func TestAddObserveFilter(t *testing.T) {
 	}
 	r, _ := NewRegistry(WithPubsub(pb), AddObserveFilter(of))
 	ch := make(chan interface{})
-	go launchSubscriber(ch, "of.s1", "localhost:43")
-	go launchSubscriber(ch, "of.s1", "localhost:44")
-	go launchSubscriber(ch, "of.s1", "10.10.1.11:43")
-	go launchSubscriber(ch, "of.s3", "10.10.1.11:43")
+	go launchSubscriber(ch, pb, "of.s1", "localhost:43")
+	go launchSubscriber(ch, pb, "of.s1", "localhost:44")
+	go launchSubscriber(ch, pb, "of.s1", "10.10.1.11:43")
+	go launchSubscriber(ch, pb, "of.s3", "10.10.1.11:43")
 	r.Observe("of.s1")
 	<-time.NewTimer(500 * time.Millisecond).C
 	services, _ := r.GetServices("of.s1")
@@ -517,7 +538,8 @@ func TestLocalFreeIPv6Addr(t *testing.T) {
 }
 
 func TestConcurrentAccessToRegisteredServices(t *testing.T) {
-	reset()
+	pb := test.NewPubSub()
+	reset(pb)
 	registry, _ := NewRegistry(WithPubsub(pb), WithRegisterInterval(time.Millisecond*1))
 	count := 0
 	ch := make(chan bool)
@@ -552,27 +574,29 @@ func TestConcurrentAccessToRegisteredServices(t *testing.T) {
 }
 
 func TestMarshal(t *testing.T) {
+	pb := test.NewPubSub()
+	defer reset(pb)
 	pb.(test.Debug).CallbackPub(func(s string, b []byte) ([]byte, error) {
 		return []byte("titi toto"), nil
 	})
 	r, _ := NewRegistry(WithPubsub(pb), WithLoglevel(logrus.FatalLevel))
 	ch := make(chan interface{})
-	go launchSubscriber(ch, "test", "localhost:43")
+	go launchSubscriber(ch, pb, "test", "localhost:43")
 
 	s, err := r.GetService("test")
 	assert.Nil(t, s)
 	assert.NotNil(t, err)
 
 	close(ch)
-	reset()
 }
 
 func TestLocalhostOFilter(t *testing.T) {
-	reset()
+	pb := test.NewPubSub()
+	reset(pb)
 	name := "TestLocalhostOFilter"
 	r, _ := NewRegistry(WithPubsub(pb), AddObserveFilter(LocalhostOFilter()))
 	ch := make(chan interface{})
-	go launchSubscriber(ch, name, "43")
+	go launchSubscriber(ch, pb, name, "43")
 
 	s, err := r.GetService(name)
 	close(ch)
@@ -583,19 +607,20 @@ func TestLocalhostOFilter(t *testing.T) {
 	assert.NotNil(t, err)
 	assert.Nil(t, s)
 	ch = make(chan interface{})
-	go launchSubscriber(ch, name, "10.1.10.4:43")
+	go launchSubscriber(ch, pb, name, "10.1.10.4:43")
 	s, err = r.GetService(name)
 	assert.NotNil(t, err)
 	assert.Nil(t, s)
 }
 
 func TestKV(t *testing.T) {
+	pb := test.NewPubSub()
 
-	reset()
+	reset(pb)
 	r, _ := NewRegistry(WithPubsub(pb))
 	s := Service{Name: "TestKV", Address: "localhost:234", KV: map[string]string{"toto": "titi", "popo": "ouf"}}
 	chStop := make(chan interface{})
-	go launchSubscriber2(chStop, s)
+	go launchSubscriber2(chStop, pb, s)
 
 	sr, _ := r.GetService("TestKV")
 	assert.Equal(t, "titi", sr.KV["toto"])
@@ -604,15 +629,16 @@ func TestKV(t *testing.T) {
 }
 
 func TestGetObservedServiceNames(t *testing.T) {
-	reset()
+	pb := test.NewPubSub()
+	reset(pb)
 	r, _ := NewRegistry(WithPubsub(pb))
 	ch := make(chan interface{})
-	go launchSubscriber(ch, "test1", "43")
-	go launchSubscriber(ch, "test2", "44")
-	go launchSubscriber(ch, "test3", "45")
-	go launchSubscriber(ch, "test1", "45")
-	go launchSubscriber(ch, "test4", "44")
-	go launchSubscriber(ch, "test5", "45")
+	go launchSubscriber(ch, pb, "test1", "43")
+	go launchSubscriber(ch, pb, "test2", "44")
+	go launchSubscriber(ch, pb, "test3", "45")
+	go launchSubscriber(ch, pb, "test1", "45")
+	go launchSubscriber(ch, pb, "test4", "44")
+	go launchSubscriber(ch, pb, "test5", "45")
 	//r.Observe("*")
 	r.GetService("test1")
 	r.GetService("test2")
@@ -625,15 +651,16 @@ func TestGetObservedServiceNames(t *testing.T) {
 }
 
 func TestGetObservedServiceNames2(t *testing.T) {
-	reset()
+	pb := test.NewPubSub()
+	reset(pb)
 	r, _ := NewRegistry(WithPubsub(pb))
 	ch := make(chan interface{})
-	go launchSubscriber(ch, "test1", "43")
-	go launchSubscriber(ch, "test2", "44")
-	go launchSubscriber(ch, "test3", "45")
-	go launchSubscriber(ch, "test1", "45")
-	go launchSubscriber(ch, "test4", "44")
-	go launchSubscriber(ch, "test5", "45")
+	go launchSubscriber(ch, pb, "test1", "43")
+	go launchSubscriber(ch, pb, "test2", "44")
+	go launchSubscriber(ch, pb, "test3", "45")
+	go launchSubscriber(ch, pb, "test1", "45")
+	go launchSubscriber(ch, pb, "test4", "44")
+	go launchSubscriber(ch, pb, "test5", "45")
 	r.GetService("test1")
 	r.GetService("test2")
 	r.GetService("test3")
@@ -647,13 +674,14 @@ func TestGetObservedServiceNames2(t *testing.T) {
 }
 
 func TestGetServiceWithFilter(t *testing.T) {
-	reset()
+	pb := test.NewPubSub()
+	reset(pb)
 
 	ch := make(chan interface{})
 	r, _ := NewRegistry(WithPubsub(pb), WithTimeout(time.Millisecond*200))
 	serviceName := "TestGetServiceWithFilter"
 	chend := make(chan interface{})
-	go launchSubscriber3(ch, chend, serviceName, "999", "node", "primary")
+	go launchSubscriber3(ch, chend, pb, serviceName, "999", "node", "primary")
 	assert.NotNil(t, r)
 	s, err := r.GetService(serviceName)
 	assert.Nil(t, err)
@@ -665,7 +693,7 @@ func TestGetServiceWithFilter(t *testing.T) {
 	assert.NotNil(t, err)
 	assert.Nil(t, s)
 	ch = make(chan interface{})
-	go launchSubscriber(ch, serviceName, "998", "node", "slv1")
+	go launchSubscriber(ch, pb, serviceName, "998", "node", "slv1")
 	s, err = r.GetService(serviceName)
 	assert.Nil(t, err)
 	assert.NotNil(t, s)
@@ -690,14 +718,14 @@ func TestGetServiceWithFilter(t *testing.T) {
 	assert.NotNil(t, err)
 	assert.Nil(t, s)
 
-	go launchSubscriber(ch, serviceName, "997", "node", "slv2")
+	go launchSubscriber(ch, pb, serviceName, "997", "node", "slv2")
 	s, err = r.GetService(serviceName, filterNode("slv2"))
 	assert.Nil(t, err)
 	assert.NotNil(t, s)
 
 	go func() {
 		time.Sleep(150 * time.Millisecond)
-		launchSubscriber(ch, serviceName, "995", "node", "slv3")
+		launchSubscriber(ch, pb, serviceName, "995", "node", "slv3")
 	}()
 
 	s, err = r.GetService(serviceName)
@@ -709,7 +737,7 @@ func TestGetServiceWithFilter(t *testing.T) {
 	assert.NotNil(t, s)
 	go func() {
 		time.Sleep(10 * time.Millisecond)
-		launchSubscriber(ch, serviceName, "992", "node", "slvxxxx")
+		launchSubscriber(ch, pb, serviceName, "992", "node", "slvxxxx")
 	}()
 
 	s, err = r.GetService(serviceName, filterNode("slv3"))
@@ -721,7 +749,8 @@ func TestGetServiceWithFilter(t *testing.T) {
 }
 
 func TestGetRegisteredService(t *testing.T) {
-	reset()
+	pb := test.NewPubSub()
+	reset(pb)
 	r, _ := NewRegistry(WithPubsub(pb))
 	s := Service{Name: "TestKV", Address: "localhost:234", KV: map[string]string{"toto": "titi", "popo": "ouf"}}
 	r.Register(s)
@@ -764,10 +793,22 @@ func TestServiceString(t *testing.T) {
 }
 
 func TestSetServiceStatus(t *testing.T) {
+	pb := test.NewPubSub()
 	r, _ := NewRegistry(WithPubsub(pb))
 	assert.ErrorIs(t, ErrNotFound, r.SetServiceStatus(Service{Name: "popo"}, Critical))
 	r.Register(Service{Name: "myservice", Network: "tcp", URL: "http://xxx"})
 	assert.Nil(t, r.SetServiceStatus(Service{Name: "myservice"}, Critical))
+	Close()
+}
+
+func TestSetServiceStatusWithKV(t *testing.T) {
+	pb := test.NewPubSub()
+	r, _ := NewRegistry(WithPubsub(pb))
+	assert.ErrorIs(t, ErrNotFound, r.SetServiceStatus(Service{Name: "popo"}, Critical))
+	r.Register(Service{Name: "myservice", Network: "tcp", URL: "http://xxx", KV: map[string]string{"toto": "titi"}})
+	assert.Nil(t, r.SetServiceStatus(Service{Name: "myservice", KV: map[string]string{"toto": "titi", "popo": "ouf"}}, Critical))
+	s := r.GetRegisteredServices()[0]
+	assert.Len(t, s.KV, 2)
 	Close()
 }
 
@@ -793,7 +834,8 @@ func TestNewRegistryWithConfiguableOption(t *testing.T) {
 }
 
 func TestGetServicesWithNoWait(t *testing.T) {
-	reset()
+	pb := test.NewPubSub()
+	reset(pb)
 	service := "TestGetServicesWithNoWait"
 	r, err := NewRegistry(WithPubsub(pb))
 	assert.Nil(t, err)
@@ -803,7 +845,7 @@ func TestGetServicesWithNoWait(t *testing.T) {
 	assert.ErrorIs(t, err, ErrNotFound)
 
 	chstop := make(chan interface{})
-	go launchSubscriber(chstop, service, "11")
+	go launchSubscriber(chstop, pb, service, "11")
 	s, err = r.GetServices(service, NoWait())
 	assert.Nil(t, s)
 	assert.ErrorIs(t, err, ErrNotFound)
@@ -811,7 +853,8 @@ func TestGetServicesWithNoWait(t *testing.T) {
 }
 
 func TestGetServicesWithNoWaitOK(t *testing.T) {
-	reset()
+	pb := test.NewPubSub()
+	reset(pb)
 	service := "TestGetServicesWithNoWaitOK"
 	r, err := NewRegistry(WithPubsub(pb))
 	assert.Nil(t, err)
@@ -821,7 +864,7 @@ func TestGetServicesWithNoWaitOK(t *testing.T) {
 	assert.ErrorIs(t, err, ErrNotFound)
 
 	chstop := make(chan interface{})
-	go launchSubscriber(chstop, service, "11")
+	go launchSubscriber(chstop, pb, service, "11")
 	time.Sleep(time.Millisecond * 5)
 	s, err = r.GetServices(service, NoWait())
 	assert.Len(t, s, 1)
@@ -830,14 +873,15 @@ func TestGetServicesWithNoWaitOK(t *testing.T) {
 }
 
 func TestGetServicesWithContext(t *testing.T) {
-	reset()
+	pb := test.NewPubSub()
+	reset(pb)
 	defer Close()
 	service := "TestGetServicesWithContext"
 	r, err := NewRegistry(WithPubsub(pb))
 	assert.Nil(t, err)
 	assert.NotNil(t, r)
 	chstop := make(chan interface{})
-	go launchSubscriber(chstop, service, "11")
+	go launchSubscriber(chstop, pb, service, "11")
 	ctx, fn := context.WithTimeout(context.TODO(), time.Second)
 	defer fn()
 	s, err := r.GetServices(service, WithContext(ctx))
@@ -846,7 +890,8 @@ func TestGetServicesWithContext(t *testing.T) {
 }
 
 func TestGetServicesWithContextFail(t *testing.T) {
-	reset()
+	pb := test.NewPubSub()
+	reset(pb)
 	defer Close()
 	service := "TestGetServicesWithContextFail"
 	r, err := NewRegistry(WithPubsub(pb))
@@ -861,7 +906,8 @@ func TestGetServicesWithContextFail(t *testing.T) {
 }
 
 func TestGetDefault(t *testing.T) {
-	reset()
+	pb := test.NewPubSub()
+	reset(pb)
 	r, err := GetDefault()
 	assert.Nil(t, r)
 	assert.ErrorIs(t, err, ErrNoDefaultInstance)
