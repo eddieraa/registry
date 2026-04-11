@@ -52,6 +52,7 @@ type Registry interface {
 type Status int
 
 const (
+	Unknown Status = -1
 	Passing Status = iota
 	Warning
 	Critical
@@ -63,7 +64,7 @@ var (
 )
 
 func (s Status) String() string {
-	return [...]string{"passing", "warning", "critical"}[s]
+	return [...]string{"", "passing", "warning", "critical"}[s]
 }
 func (s Status) FromString(status string) Status {
 	return map[string]Status{"": Passing, "passing": Passing, "warning": Warning, "critical": Critical}[status]
@@ -358,8 +359,17 @@ func (r *reg) GetObservedServiceNames() (res []string) {
 func (r *reg) SetServiceStatus(s Service, status Status) (err error) {
 	if v, ok := r.registeredServicesMap.Load(s.Name + s.Address); ok {
 		p := v.(*Pong)
-		if p.Status != status {
+		fire := false
+		if status != Unknown && p.Status != status {
 			p.Status = status
+			fire = true
+		}
+		// compare s.KV with p.KV if different fire event
+		if !equalKV(s.KV, p.KV) {
+			p.KV = s.KV
+			fire = true
+		}
+		if fire {
 			r.chFiredRegisteredService <- p
 		}
 
@@ -367,6 +377,18 @@ func (r *reg) SetServiceStatus(s Service, status Status) (err error) {
 		err = ErrNotFound
 	}
 	return
+}
+
+func equalKV(m1, m2 map[string]string) bool {
+	if len(m1) != len(m2) {
+		return false
+	}
+	for k, v := range m1 {
+		if v2, ok := m2[k]; !ok || v != v2 {
+			return false
+		}
+	}
+	return true
 }
 
 func (r *reg) GetRegisteredServices() (services []Service) {
