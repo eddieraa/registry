@@ -568,7 +568,7 @@ func TestConcurrentAccessToRegisteredServices(t *testing.T) {
 		go unRegisterFn()
 
 	}
-	<-time.NewTimer(100 * time.Millisecond).C
+	<-time.NewTimer(50 * time.Millisecond).C
 	close(ch)
 	Close()
 }
@@ -809,6 +809,30 @@ func TestSetServiceStatusWithKV(t *testing.T) {
 	assert.Nil(t, r.SetServiceStatus(Service{Name: "myservice", KV: map[string]string{"toto": "titi", "popo": "ouf"}}, Critical))
 	s := r.GetRegisteredServices()[0]
 	assert.Len(t, s.KV, 2)
+	Close()
+}
+
+// generate new test with same name but with different KV
+func TestSetServiceStatusWithKV2(t *testing.T) {
+	pb := test.NewPubSub()
+	r, _ := NewRegistry(WithPubsub(pb))
+	assert.ErrorIs(t, ErrNotFound, r.SetServiceStatus(Service{Name: "popo"}, Critical))
+	r.Register(Service{Name: "myservice", Network: "tcp", URL: "http://xxx", KV: map[string]string{"toto": "titi"}})
+	assert.Nil(t, r.SetServiceStatus(Service{Name: "myservice", KV: map[string]string{"toto": "titi2"}}, Critical))
+	s := r.GetRegisteredServices()[0]
+	assert.Len(t, s.KV, 1)
+	assert.Equal(t, "titi2", s.KV["toto"])
+	Close()
+}
+
+// test that if we set status with a service that has KV, the service is not found
+func TestSetServiceStatusErrNotFound(t *testing.T) {
+	pb := test.NewPubSub()
+	r, _ := NewRegistry(WithPubsub(pb))
+	//assert.ErrorIs(t, ErrNotFound, r.SetServiceStatus(Service{Name: "popo"}, Critical))
+	r.Register(Service{Name: "myservice", Network: "tcp", URL: "http://xxx"})
+	assert.Nil(t, r.SetServiceStatus(Service{Name: "myservice", KV: map[string]string{"toto": "titi"}}, Critical))
+	assert.ErrorIs(t, ErrNotFound, r.SetServiceStatus(Service{Name: "s2"}, Critical))
 	Close()
 }
 

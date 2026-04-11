@@ -360,7 +360,7 @@ func (r *reg) SetServiceStatus(s Service, status Status) (err error) {
 	if v, ok := r.registeredServicesMap.Load(s.Name + s.Address); ok {
 		p := v.(*Pong)
 		fire := false
-		if p.Status != status {
+		if status != Unknown && p.Status != status {
 			p.Status = status
 			fire = true
 		}
