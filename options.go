@@ -24,6 +24,7 @@ type Options struct {
 	hostname          string
 	loglevel          logrus.Level
 	KVOption          map[string]interface{}
+	logger            Logger
 }
 
 type Configure interface {
@@ -63,6 +64,7 @@ func newOptions(opts ...Option) Options {
 		observeFilters:    make([]ObserveFilter, 0),
 		loglevel:          logrus.ErrorLevel,
 		KVOption:          make(map[string]interface{}),
+		logger:            &defaultLogger{},
 	}
 	options.hostname = hostname()
 	for _, o := range opts {
