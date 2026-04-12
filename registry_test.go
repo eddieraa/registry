@@ -12,7 +12,6 @@ import (
 
 	"github.com/eddieraa/registry/pubsub"
 	test "github.com/eddieraa/registry/test"
-	"github.com/sirupsen/logrus"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -60,10 +59,10 @@ func TestChainFilter(t *testing.T) {
 	}
 	f := LoadBalanceFilter()
 
-	logrus.Info("\n", chainFilters(pongs, f), "\n", chainFilters(pongs, f), "\n", chainFilters(pongs, f), "\n", chainFilters(pongs, f))
-	logrus.Info("\n", chainFilters(pongs, f), "\n", chainFilters(pongs, f), "\n", chainFilters(pongs, f), "\n", chainFilters(pongs, f))
-	logrus.Info("\n", chainFilters(pongs, f), "\n", chainFilters(pongs, f), "\n", chainFilters(pongs, f), "\n", chainFilters(pongs, f))
-	logrus.Info("\n", chainFilters(pongs, f), "\n", chainFilters(pongs, f), "\n", chainFilters(pongs, f), "\n", chainFilters(pongs, f))
+	log.Info("\n", chainFilters(pongs, f), "\n", chainFilters(pongs, f), "\n", chainFilters(pongs, f), "\n", chainFilters(pongs, f))
+	log.Info("\n", chainFilters(pongs, f), "\n", chainFilters(pongs, f), "\n", chainFilters(pongs, f), "\n", chainFilters(pongs, f))
+	log.Info("\n", chainFilters(pongs, f), "\n", chainFilters(pongs, f), "\n", chainFilters(pongs, f), "\n", chainFilters(pongs, f))
+	log.Info("\n", chainFilters(pongs, f), "\n", chainFilters(pongs, f), "\n", chainFilters(pongs, f), "\n", chainFilters(pongs, f))
 
 }
 func launchSubscriber3(chstop chan interface{}, chend chan interface{}, pb pubsub.Pubsub, name string, addr string, kv ...string) {
@@ -504,7 +503,7 @@ func TestAddObserveFilter(t *testing.T) {
 		if strings.HasPrefix(p.Address, "localhost:") {
 			res = true
 		}
-		logrus.Debug("filter ", p.Address, " res ", res)
+		log.Debug("filter ", p.Address, " res ", res)
 		return
 	}
 	r, _ := NewRegistry(WithPubsub(pb), AddObserveFilter(of))
@@ -568,7 +567,7 @@ func TestMarshal(t *testing.T) {
 	pb.(test.Debug).CallbackPub(func(s string, b []byte) ([]byte, error) {
 		return []byte("titi toto"), nil
 	})
-	r, _ := NewRegistry(WithPubsub(pb), WithLoglevel(logrus.ErrorLevel))
+	r, _ := NewRegistry(WithPubsub(pb))
 	ch := make(chan interface{})
 	go launchSubscriber(ch, pb, "test", "localhost:43")
 
