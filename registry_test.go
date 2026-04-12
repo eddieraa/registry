@@ -6,9 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"net"
-	"path"
-	"runtime"
-	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -16,23 +13,15 @@ import (
 	"github.com/eddieraa/registry/pubsub"
 	test "github.com/eddieraa/registry/test"
 	"github.com/sirupsen/logrus"
+
 	"github.com/stretchr/testify/assert"
 )
 
 // create in memory pubsub
-//var pb pubsub.Pubsub
+// var pb pubsub.Pubsub
+var log = NewDefaulLogger()
 
 func init() {
-
-	logrus.SetFormatter(&logrus.TextFormatter{
-		ForceColors: true,
-		CallerPrettyfier: func(f *runtime.Frame) (function string, file string) {
-			file = path.Base(f.File) + ":" + strconv.Itoa(f.Line)
-			return
-		},
-	})
-	logrus.SetReportCaller(true)
-	logrus.SetLevel(logrus.ErrorLevel)
 
 	/*
 		conn, err := nats.Connect(nats.DefaultURL)
@@ -242,7 +231,7 @@ func launchSubscriber2(chstop chan interface{}, pb pubsub.Pubsub, s Service) {
 
 	reg.Register(s)
 	<-chstop
-	logrus.Info("STTTTOOPPPPPPPP ", s.Name, "    ", s.Address)
+	log.Info("STTTTOOPPPPPPPP ", s.Name, "    ", s.Address)
 
 	reg.Unregister(s)
 	reg.Close()
@@ -579,7 +568,7 @@ func TestMarshal(t *testing.T) {
 	pb.(test.Debug).CallbackPub(func(s string, b []byte) ([]byte, error) {
 		return []byte("titi toto"), nil
 	})
-	r, _ := NewRegistry(WithPubsub(pb), WithLoglevel(logrus.FatalLevel))
+	r, _ := NewRegistry(WithPubsub(pb), WithLoglevel(logrus.ErrorLevel))
 	ch := make(chan interface{})
 	go launchSubscriber(ch, pb, "test", "localhost:43")
 

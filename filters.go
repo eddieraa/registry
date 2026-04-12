@@ -2,8 +2,6 @@ package registry
 
 import (
 	"os"
-
-	"github.com/sirupsen/logrus"
 )
 
 // Filter used for filtering service
@@ -19,7 +17,7 @@ type ObserveFilter func(s *Pong) bool
 func hostname() string {
 	host, err := os.Hostname()
 	if err != nil {
-		logrus.Error("Unable to get local hostname: ", err.Error())
+		NewDefaulLogger().Errorf("Unable to get local hostname: ", err.Error())
 	}
 	return host
 }

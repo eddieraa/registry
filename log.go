@@ -14,7 +14,6 @@ type Logger interface {
 	Infof(format string, args ...any)
 	Warn(args ...any)
 	Warnf(format string, args ...any)
-	SetLevel(level LogLevel)
 }
 
 type LogLevel uint32
@@ -65,6 +64,10 @@ func (l LogLevel) String() string {
 
 type defaultLogger struct {
 	level LogLevel
+}
+
+func NewDefaulLogger() Logger {
+	return &defaultLogger{}
 }
 
 func (l *defaultLogger) log(level LogLevel, args ...any) {

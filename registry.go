@@ -414,8 +414,10 @@ func NewRegistry(opts ...Option) (Registry, error) {
 		subscriptions:                   make([]pubsub.Subscription, 0),
 		log:                             o.logger,
 	}
+	if internalLogger, ok := r.log.(*defaultLogger); ok {
+		internalLogger.SetLevel(LogLevel(r.opts.loglevel))
+	}
 
-	r.log.SetLevel(LogLevel(r.opts.loglevel))
 	go r.registerServiceInContinue()
 	return r, nil
 }
