@@ -3,6 +3,7 @@ package registry
 import (
 	"fmt"
 	golog "log"
+	"os"
 )
 
 type Logger interface {
@@ -18,6 +19,7 @@ type Logger interface {
 type RegistryLogger interface {
 	Logger
 	SetLevel(l LogLevel)
+	Fatal(args ...any)
 }
 
 type LogLevel uint32
@@ -105,6 +107,10 @@ func (l *defaultLogger) Infof(format string, args ...any) {
 }
 func (l *defaultLogger) Warn(args ...any) {
 	l.log(WarnLevel, args...)
+}
+func (l *defaultLogger) Fatal(args ...any) {
+	l.log(FatalLevel, args...)
+	os.Exit(1)
 }
 func (l *defaultLogger) Warnf(format string, args ...any) {
 	l.logf(WarnLevel, format, args...)
