@@ -5,9 +5,11 @@ import (
 
 	"github.com/eddieraa/registry"
 	"github.com/eddieraa/registry/pubsub"
-	"github.com/sirupsen/logrus"
+
 	"github.com/stretchr/testify/assert"
 )
+
+var log = registry.NewDefaulLogger()
 
 func newFps(name string) func(*pubsub.PubsubMsg) {
 	return func(m *pubsub.PubsubMsg) {
@@ -38,7 +40,7 @@ func TestFake(t *testing.T) {
 	sub := func(pb pubsub.Pubsub) func(m *pubsub.PubsubMsg) {
 		return func(m *pubsub.PubsubMsg) {
 			nb++
-			logrus.Info(pb.(*cli).String()+" rcv "+m.Subject+" data: ", string(m.Data))
+			log.Info(pb.(*cli).String()+" rcv "+m.Subject+" data: ", string(m.Data))
 
 		}
 	}
