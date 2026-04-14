@@ -7,7 +7,6 @@ import (
 
 	"github.com/eddieraa/registry"
 	nregistry "github.com/eddieraa/registry/nats"
-	"github.com/sirupsen/logrus"
 )
 
 func main() {
@@ -18,8 +17,9 @@ func main() {
 	flag.StringVar(&addr, "addr", ":8181", "address to listen")
 
 	flag.Parse()
-	logrus.SetLevel(logrus.DebugLevel)
-	logrus.Debug("start service")
+	var log = registry.NewDefaulLogger()
+	log.SetLevel(registry.DebugLevel)
+	log.Debug("start service")
 
 	go func() {
 
@@ -28,10 +28,10 @@ func main() {
 		//execute Register in go routine
 		//Register will block until nats connection is OK
 		registry.Register(registry.Service{Address: addr, Name: "sample2", KV: map[string]string{"node": "1"}})
-		logrus.Debug("service registered")
+		log.Debug("service registered")
 	}()
 	defer registry.Close()
-	logrus.Debug("registgry created")
+	log.Debug("registgry created")
 
 	handler := http.NewServeMux()
 	s := &http.Server{Addr: addr, Handler: handler}

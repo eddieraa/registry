@@ -15,7 +15,6 @@ import (
 	"github.com/eddieraa/registry"
 	pb "github.com/eddieraa/registry/nats"
 	"github.com/nats-io/nats.go"
-	"github.com/sirupsen/logrus"
 )
 
 func main() {
@@ -30,7 +29,8 @@ func main() {
 	flag.BoolVar(&warning, "status-warning", false, "Set this service in warning status")
 
 	flag.Parse()
-	logrus.SetLevel(logrus.DebugLevel)
+	var log = registry.NewDefaulLogger()
+	log.SetLevel(registry.DebugLevel)
 
 	addr, err := registry.FindFreeLocalAddress(10000, 10020)
 	if err != nil {
@@ -41,7 +41,7 @@ func main() {
 	if err != nil {
 		panic(fmt.Sprint("Could not connect to nats (", natsURL, "): ", err))
 	}
-	r, err := registry.SetDefault(pb.Nats(conn), registry.WithLoglevel(logrus.DebugLevel))
+	r, err := registry.SetDefault(pb.Nats(conn))
 	if err != nil {
 		panic(fmt.Sprint("Could not create registry ", err))
 	}
@@ -73,7 +73,7 @@ func main() {
 		out.Write(buf.Bytes())
 		if count%100 == 0 {
 			println()
-			logrus.Print(count)
+			log.Info(count)
 		} else {
 			print(".")
 		}
