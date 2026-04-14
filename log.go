@@ -15,6 +15,10 @@ type Logger interface {
 	Warn(args ...any)
 	Warnf(format string, args ...any)
 }
+type RegistryLogger interface {
+	Logger
+	SetLevel(l LogLevel)
+}
 
 type LogLevel uint32
 

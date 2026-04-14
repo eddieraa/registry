@@ -20,7 +20,11 @@ type subscription struct {
 	s *nats.Subscription
 }
 
-var log = logrus.New()
+var log registry.Logger
+
+func init() {
+	log = registry.NewDefaulLogger()
+}
 
 // SetDefault with a nats connection
 func SetDefault(c *nats.Conn, opts ...registry.Option) (r registry.Registry, err error) {
@@ -112,5 +116,14 @@ func Nats(conn *nats.Conn) registry.Option {
 
 // SetLogLevel log level
 func SetLogLevel(level logrus.Level) {
-	log.SetLevel(level)
+	if rlog, ok := log.(registry.RegistryLogger); ok {
+		rlog.SetLevel(registry.LogLevel(level))
+	}
+	if lrus, ok := log.(*logrus.Logger); ok {
+		lrus.SetLevel(level)
+	}
+}
+
+func SetLogger(l registry.Logger) {
+	log = l
 }
