@@ -20,6 +20,7 @@ type RegistryLogger interface {
 	Logger
 	SetLevel(l LogLevel)
 	Fatal(args ...any)
+	Fatalf(format string, args ...any)
 }
 
 type LogLevel uint32
@@ -110,6 +111,10 @@ func (l *defaultLogger) Warn(args ...any) {
 }
 func (l *defaultLogger) Fatal(args ...any) {
 	l.log(FatalLevel, args...)
+	os.Exit(1)
+}
+func (l *defaultLogger) Fatalf(format string, args ...any) {
+	l.logf(FatalLevel, format, args...)
 	os.Exit(1)
 }
 func (l *defaultLogger) Warnf(format string, args ...any) {
