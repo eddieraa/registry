@@ -9,12 +9,11 @@ import (
 
 	"github.com/eddieraa/registry"
 	"github.com/nats-io/nats.go"
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 )
 
 func Test1(t *testing.T) {
-	logrus.SetLevel(logrus.DebugLevel)
+	log.(registry.RegistryLogger).SetLevel(registry.DebugLevel)
 	c, err := nats.Connect("localhost:4222")
 	if err != nil {
 		t.Fatal("Could not connect to nats ", err)
@@ -32,32 +31,32 @@ func Test1(t *testing.T) {
 	}
 	assert.NotNil(t, services)
 	assert.Equal(t, 2, len(services))
-	logrus.Infof("Services %s", services)
+	log.Infof("Services %s", services)
 	<-time.Tick(time.Second * 5)
 	services, _ = registry.GetServices("httptest")
-	logrus.Info("nb services ", len(services))
+	log.Info("nb services ", len(services))
 	<-time.Tick(time.Second * 5)
 	s, _ := registry.GetService("httptest", nil)
-	logrus.Infof("Get service %s", s)
+	log.Infof("Get service %s", s)
 	services, _ = registry.GetServices("httptest")
-	logrus.Info("nb services ", len(services))
+	log.Info("nb services ", len(services))
 	<-time.Tick(time.Second * 5)
 	services, _ = registry.GetServices("httptest")
-	logrus.Info("nb services ", len(services))
+	log.Info("nb services ", len(services))
 	<-time.Tick(time.Second * 5)
 	services, _ = registry.GetServices("httptest")
-	logrus.Info("nb services ", len(services))
+	log.Info("nb services ", len(services))
 	<-time.Tick(time.Second * 5)
 	services, _ = registry.GetServices("httptest")
-	logrus.Info("nb services ", len(services))
+	log.Info("nb services ", len(services))
 	<-time.Tick(time.Second * 5)
 	services, _ = registry.GetServices("httptest")
-	logrus.Info("nb services ", len(services))
+	log.Info("nb services ", len(services))
 	services, _ = registry.GetServices("httptest")
-	logrus.Info("nb services ", len(services))
+	log.Info("nb services ", len(services))
 	<-time.Tick(time.Second * 5)
 	services, _ = registry.GetServices("httptest")
-	logrus.Info("nb services ", len(services))
+	log.Info("nb services ", len(services))
 
 	registry.Close()
 	c.Close()
@@ -77,7 +76,7 @@ func TestLB(t *testing.T) {
 	var s *registry.Service
 
 	s, err = registry.GetService(name)
-	logrus.Infof("Service %s", s)
+	log.Infof("Service %s", s)
 
 	r.Close()
 	r, err = registry.SetDefault(Nats(c), registry.WithTimeout(3000*time.Millisecond), registry.AddFilter(registry.LoadBalanceFilter()))
@@ -86,21 +85,21 @@ func TestLB(t *testing.T) {
 	}
 
 	s, err = registry.GetService(name)
-	logrus.Infof("Service %s", s.Address)
+	log.Infof("Service %s", s.Address)
 	s, err = registry.GetService(name)
-	logrus.Infof("Service %s", s.Address)
+	log.Infof("Service %s", s.Address)
 	s, err = registry.GetService(name)
-	logrus.Infof("Service %s", s.Address)
+	log.Infof("Service %s", s.Address)
 	s, err = registry.GetService(name)
-	logrus.Infof("Service %s", s.Address)
+	log.Infof("Service %s", s.Address)
 	s, err = registry.GetService(name)
-	logrus.Infof("Service %s", s.Address)
+	log.Infof("Service %s", s.Address)
 	s, err = registry.GetService(name)
-	logrus.Infof("Service %s", s.Address)
+	log.Infof("Service %s", s.Address)
 	s, err = registry.GetService(name)
-	logrus.Infof("Service %s", s.Address)
+	log.Infof("Service %s", s.Address)
 	s, err = registry.GetService(name)
-	logrus.Infof("Service %s", s.Address)
+	log.Infof("Service %s", s.Address)
 	s, err = registry.GetService(name)
-	logrus.Infof("Service %s", s.Address)
+	log.Infof("Service %s", s.Address)
 }
