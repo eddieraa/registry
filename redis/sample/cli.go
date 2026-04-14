@@ -1,21 +1,25 @@
 package main
 
 import (
+	"os"
+
 	"github.com/eddieraa/registry"
 	"github.com/eddieraa/registry/redis"
-	"github.com/sirupsen/logrus"
 )
 
 func main() {
-	logrus.SetLevel(logrus.DebugLevel)
+	var log = registry.NewDefaulLogger()
+	log.SetLevel(registry.DebugLevel)
 	r, err := registry.NewRegistry(redis.NewRedisClient(""))
 	if err != nil {
-		logrus.Fatal("Unable to create registry ", err)
+		log.Error("Unable to create registry ", err)
+		os.Exit(1)
 	}
 
 	s, err := r.GetService("httptest")
 	if err != nil {
-		logrus.Fatal("Unable to get service ", err)
+		log.Error("Unable to get service ", err)
+		os.Exit(1)
 	}
-	logrus.Print("Found ", s.Name, " ", s.Address)
+	log.Error("Found ", s.Name, " ", s.Address)
 }

@@ -70,7 +70,7 @@ type defaultLogger struct {
 	level LogLevel
 }
 
-func NewDefaulLogger() Logger {
+func NewDefaulLogger() RegistryLogger {
 	return &defaultLogger{}
 }
 
