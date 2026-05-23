@@ -83,3 +83,8 @@ func (r *RegistryMock) GetRegisteredServices() []Service {
 	}
 	return nil
 }
+
+// implement SetObserverEvent
+func (r *RegistryMock) SetObserverEvent(observerEvent ObserverEvent) {
+	// do nothing
+}

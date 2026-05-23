@@ -940,3 +940,25 @@ func TestGetDefault(t *testing.T) {
 	assert.NotNil(t, r)
 	assert.Nil(t, err)
 }
+
+// Test SetObserverEvent
+func TestSetObserverEvent(t *testing.T) {
+	pb := test.NewPubSub()
+	reset(pb)
+	chobs := make(chan Event)
+	ov := func(s Service, ev Event) {
+		chobs <- ev
+	}
+
+	r, _ := NewRegistry(WithPubsub(pb))
+	r.SetObserverEvent(ov)
+	r.Observe("testservice3")
+	chstop := make(chan interface{})
+	go launchSubscriber(chstop, pb, "testservice3", ":1")
+	ev := <-chobs
+	assert.Equal(t, EventRegister, ev)
+	chstop <- true
+	ev = <-chobs
+	assert.Equal(t, EventUnregister, ev)
+	r.Close()
+}

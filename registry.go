@@ -47,6 +47,8 @@ type Registry interface {
 	Close() error
 	SetServiceStatus(s Service, status Status) error
 	GetRegisteredServices() []Service
+	//SetObserverEvent set event when service register/unregister
+	SetObserverEvent(observerEvent ObserverEvent)
 }
 
 type Status int
@@ -400,6 +402,11 @@ func (r *reg) GetRegisteredServices() (services []Service) {
 		return true
 	})
 	return
+}
+
+// AddObserverEvent set event when service register/unregister
+func (r *reg) SetObserverEvent(observerEvent ObserverEvent) {
+	r.opts.observerEvent = observerEvent
 }
 
 // NewRegistry create a new service registry instance
