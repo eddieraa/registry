@@ -962,3 +962,28 @@ func TestSetObserverEvent(t *testing.T) {
 	assert.Equal(t, EventUnregister, ev)
 	r.Close()
 }
+
+func TestObserverMyService(t *testing.T) {
+	pb := test.NewPubSub()
+	reset(pb)
+	chobs := make(chan Event, 2)
+	ov := func(s Service, ev Event) {
+		chobs <- ev
+	}
+
+	r, _ := NewRegistry(WithPubsub(pb), WithObserverEvent(ov))
+	r.Observe("myservice4")
+	r.Register(Service{Name: "myservice4", Address: "localhost:43", Network: "tcp"})
+	chstop := make(chan interface{})
+	go launchSubscriber(chstop, pb, "myservice4", ":1")
+	ev := <-chobs
+	assert.Equal(t, EventRegister, ev)
+	ev = <-chobs
+	assert.Equal(t, EventRegister, ev)
+	services, _ := r.GetServices("myservice4")
+	assert.Equal(t, 2, len(services))
+	chstop <- true
+	ev = <-chobs
+	assert.Equal(t, EventUnregister, ev)
+	r.Close()
+}

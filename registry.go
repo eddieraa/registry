@@ -699,7 +699,8 @@ func (r *reg) subregister(msg *pubsub.PubsubMsg) {
 		registered := p.Timestamps.Registered * int64(time.Millisecond)
 		p.dueTime = time.Unix(0, registered).Add(time.Duration(d) * time.Millisecond)
 	}
-	log.Debugf("append %s ", p.Service)
+
+	log.Debugf("append %s , services is now: %d", p.Service, len(r.ser.GetServices(p.Name)))
 
 }
 
