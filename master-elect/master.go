@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"time"
 
 	"github.com/eddieraa/registry"
 	"github.com/google/uuid"
@@ -24,7 +25,10 @@ func New(r registry.Registry, serviceName string, opts ...Option) error {
 	}
 
 	o.registry.Observe(serviceName)
+	r.GetServices(serviceName)
 	o.registry.SetObserverEvent(o.createObserverEvent(serviceName))
+	chstop := make(chan struct{})
+	go o.runObserverEventInfiniteLoop(serviceName, chstop)
 	return nil
 }
 
@@ -52,6 +56,21 @@ func (o *options) createObserverEvent(serviceName string) registry.ObserverEvent
 
 		if event == registry.EventRegister || event == registry.EventUnregister {
 			o.observerEventFunc(serviceName)
+			return
+		}
+	}
+}
+
+func (o *options) runObserverEventInfiniteLoop(serviceName string, chstop chan struct{}) {
+	ticker := time.NewTicker(5 * time.Second)
+	time.Sleep(1 * time.Second) // sleep a bit to be sure to receive the observe event
+	for {
+		o.observerEventFunc(serviceName)
+		select {
+		case <-ticker.C:
+
+		case <-chstop:
+			ticker.Stop()
 			return
 		}
 	}
@@ -177,10 +196,22 @@ func (o *options) isServiceRegistered(serviceName string) (bool, registry.Servic
 	services := o.registry.GetRegisteredServices()
 	for _, s := range services {
 		if s.Name == serviceName {
+			// copy map to avoid modifying the original service in registry
+			s.KV = copyMap(s.KV)
 			return true, s
 		}
 	}
 	return false, registry.Service{}
+}
+func copyMap(m map[string]string) map[string]string {
+	if m == nil {
+		return nil
+	}
+	s := make(map[string]string)
+	for k, v := range m {
+		s[k] = v
+	}
+	return s
 }
 
 func (o *options) getMasterService(services []registry.Service) (registry.Service, bool) {
