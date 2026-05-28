@@ -60,7 +60,16 @@ const (
 )
 
 func (s Status) String() string {
-	return [...]string{"", "passing", "warning", "critical"}[s]
+	switch s {
+	case Passing:
+		return "passing"
+	case Warning:
+		return "warning"
+	case Critical:
+		return "critical"
+	default:
+		return "unknown"
+	}
 }
 func (s Status) FromString(status string) Status {
 	return map[string]Status{"": Passing, "passing": Passing, "warning": Warning, "critical": Critical}[status]
@@ -598,7 +607,6 @@ func (r *reg) getinternalService(name string, opts *getServicesOptions) (service
 		filters = r.opts.filters
 	}
 	//service is already registered
-	r.opts.logger.Info("GetService ", name)
 	if res := r.ser.GetServices(name); len(res) > 0 {
 		if len(filters) > 0 {
 			//if filters apply filters
