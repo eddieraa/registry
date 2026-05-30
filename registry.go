@@ -46,8 +46,8 @@ type Registry interface {
 	Close() error
 	SetServiceStatus(s Service, status Status) error
 	GetRegisteredServices() []Service
-	//SetObserverEvent set event when service register/unregister
-	SetObserverEvent(observerEvent ObserverEvent)
+	//AddObserverEvent add event when service register/unregister
+	AddObserverEvent(observerEvent ObserverEvent)
 }
 
 type Status int
@@ -408,8 +408,8 @@ func (r *reg) GetRegisteredServices() (services []Service) {
 }
 
 // AddObserverEvent set event when service register/unregister
-func (r *reg) SetObserverEvent(observerEvent ObserverEvent) {
-	r.opts.observerEvent = observerEvent
+func (r *reg) AddObserverEvent(observerEvent ObserverEvent) {
+	r.opts.observerEvent = append(r.opts.observerEvent, observerEvent)
 }
 
 // NewRegistry create a new service registry instance
@@ -694,8 +694,10 @@ func (r *reg) subregister(msg *pubsub.PubsubMsg) {
 	}
 
 	var alreadyExist bool
-	if p, alreadyExist = r.ser.LoadOrStore(p); !alreadyExist && r.opts.observerEvent != nil {
-		r.opts.observerEvent(p.Service, EventRegister)
+	if p, alreadyExist = r.ser.LoadOrStore(p); !alreadyExist && len(r.opts.observerEvent) > 0 {
+		for _, event := range r.opts.observerEvent {
+			event(p.Service, EventRegister)
+		}
 	}
 	if p.Timestamps != nil {
 		d := int(float32(p.Timestamps.Duration) * r.opts.dueDurationFactor)
@@ -719,8 +721,10 @@ func (r *reg) subunregister(msg *pubsub.PubsubMsg) {
 			return
 		}
 	}
-	if r.opts.observerEvent != nil {
-		r.opts.observerEvent(s, EventUnregister)
+	if len(r.opts.observerEvent) > 0 {
+		for _, event := range r.opts.observerEvent {
+			event(s, EventUnregister)
+		}
 	}
 	r.ser.DeleteByName(s.Name + s.Address)
 	r.opts.logger.Debug("Unregister service", "name", s.Name, "address", s.Address)

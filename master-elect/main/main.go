@@ -8,7 +8,6 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
-	"time"
 
 	"github.com/eddieraa/registry"
 	masterelect "github.com/eddieraa/registry/master-elect"
@@ -38,21 +37,22 @@ func main() {
 		defer r.Close()
 		r.Observe("myService")
 		// sleep a bit to be sure to receive the observe event
-		for {
+		r.AddObserverEvent(func(s registry.Service, ev registry.Event) {
 			services, err := r.GetServices("myService")
 			if err != nil {
 				logrus.Error("failed to get services", "error", err)
 			}
-			println("")
+			logrus.Info("=======> new event ", ev, " for service ", s.Address)
 			for _, s := range services {
 				//logrus.Info("service ", s.Address, " with id ", s.KV["id"], " master(", s.KV["master"], ")")
-				logrus.Infof("service %s with address %s master(%s)", s.KV["id"], s.Address, s.KV["master"])
+				logrus.Infof("service %s with address %s master(%s)", s.KV["id"], s.Address, s.KV["elect-master"])
 			}
-			time.Sleep(5 * time.Second)
-		}
+		})
+		waitForCtrlCSignal()
+		return
 
 	}
-	r, err := registry.NewRegistry(nr.Nats(conn), registry.WithLoglevel(logrus.DebugLevel))
+	r, err := registry.NewRegistry(nr.Nats(conn), registry.WithLoglevel(logrus.InfoLevel))
 	if err != nil {
 		panic(err)
 	}
@@ -71,6 +71,7 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
+
 	// wait for ctrl+c
 	waitForCtrlCSignal()
 }
@@ -85,6 +86,7 @@ func register(r registry.Registry) (func(), error) {
 		Address: address,
 		KV: map[string]string{
 			"myservice": fmt.Sprintf("%d", os.Getpid()),
+			"elect-id":  address,
 		},
 	})
 	if err != nil {

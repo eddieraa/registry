@@ -945,8 +945,8 @@ func TestGetDefault(t *testing.T) {
 	assert.Nil(t, err)
 }
 
-// Test SetObserverEvent
-func TestSetObserverEvent(t *testing.T) {
+// Test AddObserverEvent
+func TestAddObserverEvent(t *testing.T) {
 	pb := test.NewPubSub()
 	reset(pb)
 	chobs := make(chan Event)
@@ -955,7 +955,7 @@ func TestSetObserverEvent(t *testing.T) {
 	}
 
 	r, _ := NewRegistry(WithPubsub(pb))
-	r.SetObserverEvent(ov)
+	r.AddObserverEvent(ov)
 	r.Observe("testservice3")
 	chstop := make(chan interface{})
 	go launchSubscriber(chstop, pb, "testservice3", ":1")

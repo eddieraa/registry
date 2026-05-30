@@ -2,12 +2,11 @@ package masterelect
 
 import (
 	"errors"
-	"fmt"
-	"log/slog"
 	"time"
 
 	"github.com/eddieraa/registry"
 	"github.com/google/uuid"
+	"github.com/sirupsen/logrus"
 )
 
 type options struct {
@@ -16,6 +15,15 @@ type options struct {
 	registry  registry.Registry
 }
 
+// define constants for masterKey and idKey
+const (
+	defaultMasterKey = "elect-master"
+	defaultIDKey     = "elect-id"
+)
+
+// New create a master election for a service name in a registry
+// the service with the lowest id in its KV is the master
+// if a service register/unregister or if the master service is not eligible anymore, the master election is re-evaluated
 func New(r registry.Registry, serviceName string, opts ...Option) error {
 	o := newOptions(opts...)
 	o.registry = r
@@ -26,7 +34,7 @@ func New(r registry.Registry, serviceName string, opts ...Option) error {
 
 	o.registry.Observe(serviceName)
 	r.GetServices(serviceName)
-	o.registry.SetObserverEvent(o.createObserverEvent(serviceName))
+
 	chstop := make(chan struct{})
 	go o.runObserverEventInfiniteLoop(serviceName, chstop)
 	return nil
@@ -49,7 +57,7 @@ func (o *options) addIDToService(s *registry.Service) bool {
 // create  ObserverEvent func to manage master election when service register/unregister
 func (o *options) createObserverEvent(serviceName string) registry.ObserverEvent {
 	return func(s registry.Service, event registry.Event) {
-		slog.Info("createObserverEvent called with service ", fmt.Sprintf("%+v", s), " and event ", event)
+		logrus.Info("ObserverEvent called with service ", s.Address, " and event ", event)
 		if s.Name != serviceName {
 			return
 		}
@@ -64,6 +72,7 @@ func (o *options) createObserverEvent(serviceName string) registry.ObserverEvent
 func (o *options) runObserverEventInfiniteLoop(serviceName string, chstop chan struct{}) {
 	ticker := time.NewTicker(5 * time.Second)
 	time.Sleep(1 * time.Second) // sleep a bit to be sure to receive the observe event
+	o.registry.AddObserverEvent(o.createObserverEvent(serviceName))
 	for {
 		o.observerEventFunc(serviceName)
 		select {
@@ -242,8 +251,8 @@ func (o *options) isEligible(s registry.Service, services []registry.Service) bo
 
 func newOptions(opts ...Option) options {
 	options := options{
-		masterKey: "master",
-		idKey:     "id",
+		masterKey: defaultMasterKey,
+		idKey:     defaultIDKey,
 		registry:  nil,
 	}
 	for _, o := range opts {
