@@ -47,6 +47,8 @@ type Registry interface {
 	Close() error
 	SetServiceStatus(s Service, status Status) error
 	GetRegisteredServices() []Service
+	//AddObserverEvent add event when service register/unregister
+	AddObserverEvent(observerEvent ObserverEvent)
 }
 
 type Status int
@@ -64,7 +66,16 @@ var (
 )
 
 func (s Status) String() string {
-	return [...]string{"", "passing", "warning", "critical"}[s]
+	switch s {
+	case Passing:
+		return "passing"
+	case Warning:
+		return "warning"
+	case Critical:
+		return "critical"
+	default:
+		return "unknown"
+	}
 }
 func (s Status) FromString(status string) Status {
 	return map[string]Status{"": Passing, "passing": Passing, "warning": Warning, "critical": Critical}[status]
@@ -402,6 +413,11 @@ func (r *reg) GetRegisteredServices() (services []Service) {
 	return
 }
 
+// AddObserverEvent set event when service register/unregister
+func (r *reg) AddObserverEvent(observerEvent ObserverEvent) {
+	r.opts.observerEvent = append(r.opts.observerEvent, observerEvent)
+}
+
 // NewRegistry create a new service registry instance
 func NewRegistry(opts ...Option) (Registry, error) {
 	o := newOptions(opts...)
@@ -596,7 +612,6 @@ func (r *reg) getinternalService(name string, opts *getServicesOptions) (service
 		filters = r.opts.filters
 	}
 	//service is already registered
-	log.Info("GetService ", name)
 	if res := r.ser.GetServices(name); len(res) > 0 {
 		if len(filters) > 0 {
 			//if filters apply filters
@@ -684,15 +699,18 @@ func (r *reg) subregister(msg *pubsub.PubsubMsg) {
 	}
 
 	var alreadyExist bool
-	if p, alreadyExist = r.ser.LoadOrStore(p); !alreadyExist && r.opts.observerEvent != nil {
-		r.opts.observerEvent(p.Service, EventRegister)
+	if p, alreadyExist = r.ser.LoadOrStore(p); !alreadyExist && len(r.opts.observerEvent) > 0 {
+		for _, event := range r.opts.observerEvent {
+			event(p.Service, EventRegister)
+		}
 	}
 	if p.Timestamps != nil {
 		d := int(float32(p.Timestamps.Duration) * r.opts.dueDurationFactor)
 		registered := p.Timestamps.Registered * int64(time.Millisecond)
 		p.dueTime = time.Unix(0, registered).Add(time.Duration(d) * time.Millisecond)
 	}
-	log.Debugf("append %s ", p.Service)
+
+	log.Debugf("append %s , services is now: %d", p.Service, len(r.ser.GetServices(p.Name)))
 
 }
 
@@ -709,8 +727,10 @@ func (r *reg) subunregister(msg *pubsub.PubsubMsg) {
 			return
 		}
 	}
-	if r.opts.observerEvent != nil {
-		r.opts.observerEvent(s, EventUnregister)
+	if len(r.opts.observerEvent) > 0 {
+		for _, event := range r.opts.observerEvent {
+			event(s, EventUnregister)
+		}
 	}
 	r.ser.DeleteByName(s.Name + s.Address)
 	log.Debugf("Unregister service %s/%s", s.Name, s.Address)

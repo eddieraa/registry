@@ -65,6 +65,7 @@ func (s *services) LoadOrStore(p *Pong) (res *Pong, loaded bool) {
 	if v, loaded = s.m.LoadOrStore(p.Name+p.Address, p); loaded {
 		old := v.(*Pong)
 		old.Timestamps = p.Timestamps
+		old.KV = p.KV
 		res = old
 	} else {
 		s.rebuildCache(p.Name)

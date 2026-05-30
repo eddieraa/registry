@@ -20,7 +20,7 @@ type Options struct {
 	filters           []Filter
 	observeFilters    []ObserveFilter
 	dueDurationFactor float32
-	observerEvent     ObserverEvent
+	observerEvent     []ObserverEvent
 	hostname          string
 	loglevel          logrus.Level
 	KVOption          map[string]interface{}
@@ -119,7 +119,7 @@ func AddObserveFilter(f ObserveFilter) Option {
 // WithObserverEvent set handler for Observer Event
 func WithObserverEvent(ev ObserverEvent) Option {
 	return func(opts *Options) {
-		opts.observerEvent = ev
+		opts.observerEvent = append(opts.observerEvent, ev)
 	}
 }
 
