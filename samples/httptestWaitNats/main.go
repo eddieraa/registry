@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"log/slog"
 	"net/http"
 
 	"github.com/eddieraa/registry"
@@ -17,8 +18,7 @@ func main() {
 	flag.StringVar(&addr, "addr", ":8181", "address to listen")
 
 	flag.Parse()
-	var log = registry.NewDefaulLogger()
-	log.SetLevel(registry.DebugLevel)
+	var log = slog.Default()
 	log.Debug("start service")
 
 	go func() {

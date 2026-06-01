@@ -6,7 +6,6 @@ import (
 	"github.com/eddieraa/registry"
 	"github.com/eddieraa/registry/pubsub"
 	"github.com/nats-io/nats.go"
-	"github.com/sirupsen/logrus"
 )
 
 const natsUrlsKey = "natsURL"
@@ -18,12 +17,6 @@ type pb struct {
 }
 type subscription struct {
 	s *nats.Subscription
-}
-
-var log registry.Logger
-
-func init() {
-	log = registry.NewDefaulLogger()
 }
 
 // SetDefault with a nats connection
@@ -71,7 +64,6 @@ func (pb *pb) wait4Connection() {
 
 func (pb *pb) Sub(topic string, f func(m *pubsub.PubsubMsg)) (pubsub.Subscription, error) {
 	pb.wait4Connection()
-	log.Debug("subscribe to: ", topic)
 	subscript, err := pb.c.Subscribe(topic, func(m *nats.Msg) {
 		f(&pubsub.PubsubMsg{Subject: m.Subject, Data: m.Data})
 	})
@@ -80,7 +72,6 @@ func (pb *pb) Sub(topic string, f func(m *pubsub.PubsubMsg)) (pubsub.Subscriptio
 }
 func (pb *pb) Pub(topic string, data []byte) error {
 	pb.wait4Connection()
-	log.Debug("publish: ", topic)
 	return pb.c.Publish(topic, data)
 }
 
@@ -112,18 +103,4 @@ func WithNatsUrl(natsUrls string) registry.Option {
 // Nats initialyse service registry with nats connection
 func Nats(conn *nats.Conn) registry.Option {
 	return registry.WithPubsub(NewPub(conn))
-}
-
-// SetLogLevel log level
-func SetLogLevel(level logrus.Level) {
-	if rlog, ok := log.(registry.RegistryLogger); ok {
-		rlog.SetLevel(registry.LogLevel(level))
-	}
-	if lrus, ok := log.(*logrus.Logger); ok {
-		lrus.SetLevel(level)
-	}
-}
-
-func SetLogger(l registry.Logger) {
-	log = l
 }

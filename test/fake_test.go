@@ -1,6 +1,7 @@
 package test
 
 import (
+	"log/slog"
 	"testing"
 
 	"github.com/eddieraa/registry"
@@ -9,7 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-var log = registry.NewDefaulLogger()
+var log = slog.Default()
 
 func newFps(name string) func(*pubsub.PubsubMsg) {
 	return func(m *pubsub.PubsubMsg) {

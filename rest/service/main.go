@@ -3,7 +3,9 @@ package main
 import (
 	"flag"
 	"fmt"
+	"log/slog"
 	"net/http"
+	"os"
 
 	"github.com/eddieraa/registry"
 	regnats "github.com/eddieraa/registry/nats"
@@ -12,8 +14,8 @@ import (
 )
 
 func main() {
-	var log = registry.NewDefaulLogger()
-	log.SetLevel(registry.InfoLevel)
+	var log = slog.Default()
+
 	var natsURL string
 	flag.StringVar(&natsURL, "nats-url", "localhost:4222", "NATS server URL ")
 
@@ -32,10 +34,14 @@ func main() {
 
 	r, err := registry.NewRegistry(regnats.Nats(conn))
 	if err != nil {
-		log.Fatal(err)
+		log.Error("unable to create registry ", "error", err.Error())
+		os.Exit(1)
 	}
 	r.Observe("*")
 	r.Register(registry.Service{Name: consul.REGISTRY_NAME, Address: bindAddress})
 	consul.HandleServices(r)
-	log.Fatal(http.ListenAndServe(bindAddress, nil))
+	if err := http.ListenAndServe(bindAddress, nil); err != nil {
+		log.Error("unable to start server ", "error", err.Error())
+		os.Exit(1)
+	}
 }

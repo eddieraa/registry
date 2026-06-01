@@ -1,6 +1,7 @@
 package main
 
 import (
+	"log/slog"
 	"os"
 	"os/signal"
 	"syscall"
@@ -10,11 +11,12 @@ import (
 )
 
 func main() {
-	var log = registry.NewDefaulLogger()
-	log.SetLevel(registry.DebugLevel)
+	var log = slog.Default()
+
 	r, err := registry.NewRegistry(redis.NewRedisClient(""))
 	if err != nil {
-		log.Fatal("unable to connect to redis ", err)
+		log.Error("unable to connect to redis ", "error", err.Error())
+		os.Exit(1)
 	}
 	_, err = r.Register(registry.Service{Address: "localhost:5435", Name: "httptest"})
 

@@ -5,6 +5,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
@@ -29,8 +30,7 @@ func main() {
 	flag.BoolVar(&warning, "status-warning", false, "Set this service in warning status")
 
 	flag.Parse()
-	var log = registry.NewDefaulLogger()
-	log.SetLevel(registry.DebugLevel)
+	var log = slog.Default()
 
 	addr, err := registry.FindFreeLocalAddress(10000, 10020)
 	if err != nil {
@@ -73,7 +73,7 @@ func main() {
 		out.Write(buf.Bytes())
 		if count%100 == 0 {
 			println()
-			log.Info(count)
+			log.Info("Request count", "count", count)
 		} else {
 			print(".")
 		}

@@ -1,6 +1,7 @@
 package registry
 
 import (
+	"log/slog"
 	"time"
 
 	"github.com/eddieraa/registry/pubsub"
@@ -64,7 +65,7 @@ func newOptions(opts ...Option) Options {
 		observeFilters:    make([]ObserveFilter, 0),
 		loglevel:          logrus.ErrorLevel,
 		KVOption:          make(map[string]interface{}),
-		logger:            &defaultLogger{},
+		logger:            slog.New(slog.Default().Handler()),
 	}
 	options.hostname = hostname()
 	for _, o := range opts {

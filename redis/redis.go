@@ -8,8 +8,6 @@ import (
 	"github.com/go-redis/redis/v8"
 )
 
-var log = registry.NewDefaulLogger()
-
 type pubsub struct {
 	rb            *redis.Client
 	pb            *redis.PubSub
@@ -61,7 +59,6 @@ stop:
 	for {
 		select {
 		case <-p.chstop:
-			log.Info("Stop requested")
 			break stop
 		case m := <-ch:
 			if s, ok := p.subscriptions[m.Channel]; ok {
@@ -72,7 +69,6 @@ stop:
 }
 
 func (p *pubsub) Sub(topic string, f func(m *pb.PubsubMsg)) (pb.Subscription, error) {
-	log.Debug("sub ", topic)
 	err := p.pb.Subscribe(p.ctx, topic)
 	if err != nil {
 		return nil, err
@@ -87,7 +83,6 @@ func (p *pubsub) Sub(topic string, f func(m *pb.PubsubMsg)) (pb.Subscription, er
 }
 
 func (p *pubsub) Pub(topic string, data []byte) error {
-	log.Debug("pub ", topic)
 	publish := p.rb.Publish(p.ctx, topic, data)
 	return publish.Err()
 }
@@ -100,7 +95,6 @@ func (p *pubsub) Stop() {
 }
 
 func (s *subscription) Unsub() error {
-	log.Debug("unsub ", s.channel)
 	return s.unsub()
 }
 func (s *subscription) Subject() string {

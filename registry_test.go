@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net"
 	"strings"
 	"testing"
@@ -18,7 +19,7 @@ import (
 
 // create in memory pubsub
 // var pb pubsub.Pubsub
-var log = NewDefaulLogger()
+var log = slog.New(slog.Default().Handler())
 
 func init() {
 
@@ -59,10 +60,11 @@ func TestChainFilter(t *testing.T) {
 	}
 	f := LoadBalanceFilter()
 
-	log.Info("\n", chainFilters(pongs, f), "\n", chainFilters(pongs, f), "\n", chainFilters(pongs, f), "\n", chainFilters(pongs, f))
-	log.Info("\n", chainFilters(pongs, f), "\n", chainFilters(pongs, f), "\n", chainFilters(pongs, f), "\n", chainFilters(pongs, f))
-	log.Info("\n", chainFilters(pongs, f), "\n", chainFilters(pongs, f), "\n", chainFilters(pongs, f), "\n", chainFilters(pongs, f))
-	log.Info("\n", chainFilters(pongs, f), "\n", chainFilters(pongs, f), "\n", chainFilters(pongs, f), "\n", chainFilters(pongs, f))
+	log.Info("filter", "filter", f)
+	log.Info("filter", "filter", slog.Any("services", chainFilters(pongs, f)))
+	log.Info("filter", "filter", slog.Any("services", chainFilters(pongs, f)))
+	log.Info("filter", "filter", slog.Any("services", chainFilters(pongs, f)))
+	log.Info("filter", "filter", slog.Any("services", chainFilters(pongs, f)))
 
 }
 func launchSubscriber3(chstop chan interface{}, chend chan interface{}, pb pubsub.Pubsub, name string, addr string, kv ...string) {
@@ -230,7 +232,7 @@ func launchSubscriber2(chstop chan interface{}, pb pubsub.Pubsub, s Service) {
 
 	reg.Register(s)
 	<-chstop
-	log.Info("STTTTOOPPPPPPPP ", s.Name, "    ", s.Address)
+	log.Info("STTTTOOPPPPPPPP", "service", s.Name, "    ", s.Address)
 
 	reg.Unregister(s)
 	reg.Close()
@@ -503,7 +505,7 @@ func TestAddObserveFilter(t *testing.T) {
 		if strings.HasPrefix(p.Address, "localhost:") {
 			res = true
 		}
-		log.Debug("filter ", p.Address, " res ", res)
+		log.Debug("filter", "address", p.Address, "result", res)
 		return
 	}
 	r, _ := NewRegistry(WithPubsub(pb), AddObserveFilter(of))

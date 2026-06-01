@@ -1,6 +1,7 @@
 package main
 
 import (
+	"log/slog"
 	"os"
 
 	"github.com/eddieraa/registry"
@@ -8,8 +9,8 @@ import (
 )
 
 func main() {
-	var log = registry.NewDefaulLogger()
-	log.SetLevel(registry.DebugLevel)
+	var log = slog.Default()
+
 	r, err := registry.NewRegistry(redis.NewRedisClient(""))
 	if err != nil {
 		log.Error("Unable to create registry ", err)
