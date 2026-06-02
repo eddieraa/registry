@@ -41,7 +41,7 @@ func TestFake(t *testing.T) {
 	sub := func(pb pubsub.Pubsub) func(m *pubsub.PubsubMsg) {
 		return func(m *pubsub.PubsubMsg) {
 			nb++
-			log.Info(pb.(*cli).String()+" rcv "+m.Subject+" data: ", string(m.Data))
+			log.Info("pb ", "service", pb.(*cli).String(), "rcv ", m.Subject, "data: ", string(m.Data))
 
 		}
 	}

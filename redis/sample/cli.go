@@ -13,14 +13,14 @@ func main() {
 
 	r, err := registry.NewRegistry(redis.NewRedisClient(""))
 	if err != nil {
-		log.Error("Unable to create registry ", err)
+		log.Error("Unable to create registry ", "error", err.Error())
 		os.Exit(1)
 	}
 
 	s, err := r.GetService("httptest")
 	if err != nil {
-		log.Error("Unable to get service ", err)
+		log.Error("Unable to get service ", "error", err.Error())
 		os.Exit(1)
 	}
-	log.Error("Found ", s.Name, " ", s.Address)
+	log.Error("Found ", "service", s.Name, "address", s.Address)
 }

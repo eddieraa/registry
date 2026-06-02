@@ -48,7 +48,7 @@ func main() {
 			log.Error("Could not request url ", "error", err.Error())
 		}
 		out, _ := ioutil.ReadAll(rep.Body)
-		log.Info("Read ", string(out))
+		log.Info("Read ", "data", string(out))
 	}
 	reg.Close()
 
