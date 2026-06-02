@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/eddieraa/registry/pubsub"
-	"github.com/sirupsen/logrus"
 )
 
 // Option option func
@@ -23,7 +22,6 @@ type Options struct {
 	dueDurationFactor float32
 	observerEvent     ObserverEvent
 	hostname          string
-	loglevel          logrus.Level
 	KVOption          map[string]interface{}
 	logger            Logger
 }
@@ -63,7 +61,6 @@ func newOptions(opts ...Option) Options {
 		dueDurationFactor: DefaultDueDurationFactor,
 		filters:           make([]Filter, 0),
 		observeFilters:    make([]ObserveFilter, 0),
-		loglevel:          logrus.ErrorLevel,
 		KVOption:          make(map[string]interface{}),
 		logger:            slog.New(slog.Default().Handler()),
 	}
@@ -126,9 +123,9 @@ func WithObserverEvent(ev ObserverEvent) Option {
 	}
 }
 
-// WithLoglevel set log level
-func WithLoglevel(level logrus.Level) Option {
+// WithLogger set logger
+func WithLogger(logger Logger) Option {
 	return func(opts *Options) {
-		opts.loglevel = level
+		opts.logger = logger
 	}
 }
