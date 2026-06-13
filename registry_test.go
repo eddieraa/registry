@@ -745,6 +745,20 @@ func TestGetRegisteredService(t *testing.T) {
 	s := Service{Name: "TestKV", Address: "localhost:234", KV: map[string]string{"toto": "titi", "popo": "ouf"}}
 	r.Register(s)
 	assert.Equal(t, 1, len(r.GetRegisteredServices()))
+}
+
+func TestGetRegisteredServiceWithDefault(t *testing.T) {
+	pb := test.NewPubSub()
+	reset(pb)
+	_, err := GetRegisteredServices()
+	assert.Equal(t, ErrNoDefaultInstance, err)
+	SetDefault(WithPubsub(pb))
+
+	s := Service{Name: "TestKV", Address: "localhost:234", KV: map[string]string{"toto": "titi", "popo": "ouf"}}
+	Register(s)
+	services, err := GetRegisteredServices()
+	assert.Nil(t, err)
+	assert.Equal(t, 1, len(services))
 
 }
 
