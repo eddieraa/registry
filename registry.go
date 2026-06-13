@@ -155,7 +155,6 @@ type reg struct {
 	//references to all subscriptions to nats
 	//these subscriptions unsubscripe when Close function will be call
 	subscriptions []pubsub.Subscription
-	log           Logger
 }
 
 type getServicesOptions struct {
@@ -214,7 +213,7 @@ func (p Pong) String() string {
 }
 
 func (r *reg) subToPing(p *Pong) error {
-	r.log.Info("Sub to ping for service ", p.Name, " ", p.Address)
+	r.opts.logger.Info("Sub to ping for service ", p.Name, " ", p.Address)
 	fn := func(m *pubsub.PubsubMsg) {
 		r.pubregister(p)
 	}
@@ -222,7 +221,7 @@ func (r *reg) subToPing(p *Pong) error {
 	if err != nil {
 		return err
 	}
-	r.log.Debug("Subscribe", "topic", s.Subject())
+	r.opts.logger.Debug("Subscribe", "topic", s.Subject())
 	r.subscriptions = append(r.subscriptions, s)
 	return nil
 }
@@ -233,7 +232,7 @@ func (r *reg) Register(s Service) (f FnUnregister, err error) {
 	}
 	p := &Pong{Service: s, Timestamps: &Timestamps{Registered: time.Now().UnixNano(), Duration: int(r.opts.registerInterval.Milliseconds())}}
 	if err = r.subToPing(p); err != nil {
-		r.log.Error("Failed to subscribe to ping", "service", s.Name, "error", err)
+		r.opts.logger.Error("Failed to subscribe to ping", "service", s.Name, "error", err)
 		return nil, err
 	}
 
@@ -266,23 +265,23 @@ func (r *reg) pubregister(p *Pong) (err error) {
 	if err == nil {
 		topic := r.buildMessage("register", p.Name)
 		if err = r.opts.pubsub.Pub(topic, data); err != nil {
-			r.log.Error("publish register failed for service ", "name", p.Name, "error", err)
+			r.opts.logger.Error("publish register failed for service ", "name", p.Name, "error", err)
 			return
 		}
-		r.log.Debug("publish register", "topic", topic, "address", p.Address, "host", p.Host, "status", p.Status)
+		r.opts.logger.Debug("publish register", "topic", topic, "address", p.Address, "host", p.Host, "status", p.Status)
 	}
 	return
 }
 
 func (r *reg) registerServiceInContinue() {
-	r.log.Info("Start go routine for register services", "interval", r.opts.registerInterval)
+	r.opts.logger.Info("Start go routine for register services", "interval", r.opts.registerInterval)
 	tk := time.NewTicker(r.opts.registerInterval)
 	tkDue := time.NewTicker(r.opts.checkDueTime)
 stop:
 	for {
 		select {
 		case <-r.chStopChannelRegisteredServices:
-			r.log.Info("Receive stop in channel")
+			r.opts.logger.Info("Receive stop in channel")
 			break stop
 		case <-tk.C:
 			r.registeredServicesMap.Range(func(k, v interface{}) bool {
@@ -297,7 +296,7 @@ stop:
 	}
 	tk.Stop()
 	tkDue.Stop()
-	r.log.Info("Stop go routine registerSerivceInContinue")
+	r.opts.logger.Info("Stop go routine registerSerivceInContinue")
 }
 
 func (r *reg) checkDueTime() {
@@ -331,7 +330,7 @@ func (r *reg) Unregister(s Service) (err error) {
 		topic = r.buildMessage("unregister", s.Name)
 		err = r.opts.pubsub.Pub(topic, data)
 		r.registeredServicesMap.Delete(s.Name + s.Address)
-		r.log.Info("Unregister service", "topic", topic, "address", s.Address, "host", s.Host)
+		r.opts.logger.Info("Unregister service", "topic", topic, "address", s.Address, "host", s.Host)
 	}
 	return
 }
@@ -413,7 +412,6 @@ func NewRegistry(opts ...Option) (Registry, error) {
 		chFiredRegisteredService:        make(chan *Pong),
 		chStopChannelRegisteredServices: make(chan bool),
 		subscriptions:                   make([]pubsub.Subscription, 0),
-		log:                             o.logger,
 	}
 
 	go r.registerServiceInContinue()
@@ -432,6 +430,7 @@ func SetDefault(opts ...Option) (r Registry, err error) {
 			instance = r.(*reg)
 		}
 	}
+	instance.opts.logger.Debug("SetDefault registry instance")
 	return
 }
 
@@ -592,7 +591,7 @@ func (r *reg) getinternalService(name string, opts *getServicesOptions) (service
 		filters = r.opts.filters
 	}
 	//service is already registered
-	r.log.Info("GetService ", name)
+	r.opts.logger.Info("GetService ", name)
 	if res := r.ser.GetServices(name); len(res) > 0 {
 		if len(filters) > 0 {
 			//if filters apply filters
@@ -665,10 +664,10 @@ func (r *reg) subregister(msg *pubsub.PubsubMsg) {
 	var p *Pong
 	err := json.Unmarshal(msg.Data, &p)
 	if err != nil {
-		r.log.Error("unmarshal error when sub to register", "error", err, "data", string(msg.Data))
+		r.opts.logger.Error("unmarshal error when sub to register", "error", err, "data", string(msg.Data))
 		return
 	}
-	r.log.Info("rcv", "name", p.Name, "kv", p.KV)
+	r.opts.logger.Info("rcv", "name", p.Name, "kv", p.KV)
 	for _, f := range r.opts.observeFilters {
 		if !f(p) {
 			return
@@ -688,7 +687,7 @@ func (r *reg) subregister(msg *pubsub.PubsubMsg) {
 		registered := p.Timestamps.Registered * int64(time.Millisecond)
 		p.dueTime = time.Unix(0, registered).Add(time.Duration(d) * time.Millisecond)
 	}
-	r.log.Debug("append", "service", p.Service)
+	r.opts.logger.Debug("append", "service", p.Service)
 
 }
 
@@ -696,7 +695,7 @@ func (r *reg) subunregister(msg *pubsub.PubsubMsg) {
 	var s Service
 	err := json.Unmarshal(msg.Data, &s)
 	if err != nil {
-		r.log.Error("unmarshal error when sub to register", "error", err, "data", string(msg.Data))
+		r.opts.logger.Error("unmarshal error when sub to register", "error", err, "data", string(msg.Data))
 		return
 	}
 	p := &Pong{Service: s}
@@ -709,7 +708,7 @@ func (r *reg) subunregister(msg *pubsub.PubsubMsg) {
 		r.opts.observerEvent(s, EventUnregister)
 	}
 	r.ser.DeleteByName(s.Name + s.Address)
-	r.log.Debug("Unregister service", "name", s.Name, "address", s.Address)
+	r.opts.logger.Debug("Unregister service", "name", s.Name, "address", s.Address)
 }
 
 // adding subscription
@@ -746,6 +745,6 @@ func (r *reg) Close() (err error) {
 	}
 	r.subscriptions = r.subscriptions[0:0]
 	instance = nil
-	r.log.Debug("Close registry done")
+	r.opts.logger.Debug("Close registry done")
 	return
 }
