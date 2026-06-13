@@ -400,6 +400,7 @@ func (r *reg) GetRegisteredServices() (services []Service) {
 // NewRegistry create a new service registry instance
 func NewRegistry(opts ...Option) (Registry, error) {
 	o := newOptions(opts...)
+	initLogger(&o)
 	if cfg, ok := o.pubsub.(Configure); ok {
 		if err := cfg.Configure(&o); err != nil {
 			return nil, err

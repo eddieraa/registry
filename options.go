@@ -22,6 +22,7 @@ type Options struct {
 	dueDurationFactor float32
 	observerEvent     ObserverEvent
 	hostname          string
+	loglevel          slog.Level
 	KVOption          map[string]interface{}
 	logger            Logger
 }
@@ -61,8 +62,8 @@ func newOptions(opts ...Option) Options {
 		dueDurationFactor: DefaultDueDurationFactor,
 		filters:           make([]Filter, 0),
 		observeFilters:    make([]ObserveFilter, 0),
+		loglevel:          slog.LevelError,
 		KVOption:          make(map[string]interface{}),
-		logger:            slog.New(slog.Default().Handler()),
 	}
 	options.hostname = hostname()
 	for _, o := range opts {
@@ -120,6 +121,13 @@ func AddObserveFilter(f ObserveFilter) Option {
 func WithObserverEvent(ev ObserverEvent) Option {
 	return func(opts *Options) {
 		opts.observerEvent = ev
+	}
+}
+
+// WithLoglevel set log level
+func WithLoglevel(level slog.Level) Option {
+	return func(opts *Options) {
+		opts.loglevel = level
 	}
 }
 
