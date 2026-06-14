@@ -1,13 +1,16 @@
 package test
 
 import (
+	"log/slog"
 	"testing"
 
 	"github.com/eddieraa/registry"
 	"github.com/eddieraa/registry/pubsub"
-	"github.com/sirupsen/logrus"
+
 	"github.com/stretchr/testify/assert"
 )
+
+var log = slog.Default()
 
 func newFps(name string) func(*pubsub.PubsubMsg) {
 	return func(m *pubsub.PubsubMsg) {
@@ -38,7 +41,7 @@ func TestFake(t *testing.T) {
 	sub := func(pb pubsub.Pubsub) func(m *pubsub.PubsubMsg) {
 		return func(m *pubsub.PubsubMsg) {
 			nb++
-			logrus.Info(pb.(*cli).String()+" rcv "+m.Subject+" data: ", string(m.Data))
+			log.Info("pb ", "service", pb.(*cli).String(), "rcv ", m.Subject, "data: ", string(m.Data))
 
 		}
 	}

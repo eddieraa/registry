@@ -1,20 +1,22 @@
 package main
 
 import (
+	"log/slog"
 	"os"
 	"os/signal"
 	"syscall"
 
 	"github.com/eddieraa/registry"
 	"github.com/eddieraa/registry/redis"
-	"github.com/sirupsen/logrus"
 )
 
 func main() {
-	logrus.SetLevel(logrus.DebugLevel)
+	var log = slog.Default()
+
 	r, err := registry.NewRegistry(redis.NewRedisClient(""))
 	if err != nil {
-		logrus.Fatal("unable to connect to redis ", err)
+		log.Error("unable to connect to redis ", "error", err.Error())
+		os.Exit(1)
 	}
 	_, err = r.Register(registry.Service{Address: "localhost:5435", Name: "httptest"})
 
@@ -22,6 +24,6 @@ func main() {
 	sigs := make(chan os.Signal, 1)
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
 	<-sigs
-	logrus.Info("Stop")
+	log.Info("Stop")
 
 }

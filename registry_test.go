@@ -5,34 +5,23 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net"
-	"path"
-	"runtime"
-	"strconv"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/eddieraa/registry/pubsub"
 	test "github.com/eddieraa/registry/test"
-	"github.com/sirupsen/logrus"
+
 	"github.com/stretchr/testify/assert"
 )
 
 // create in memory pubsub
-//var pb pubsub.Pubsub
+// var pb pubsub.Pubsub
+var log = slog.New(slog.Default().Handler())
 
 func init() {
-
-	logrus.SetFormatter(&logrus.TextFormatter{
-		ForceColors: true,
-		CallerPrettyfier: func(f *runtime.Frame) (function string, file string) {
-			file = path.Base(f.File) + ":" + strconv.Itoa(f.Line)
-			return
-		},
-	})
-	logrus.SetReportCaller(true)
-	logrus.SetLevel(logrus.ErrorLevel)
 
 	/*
 		conn, err := nats.Connect(nats.DefaultURL)
@@ -71,10 +60,11 @@ func TestChainFilter(t *testing.T) {
 	}
 	f := LoadBalanceFilter()
 
-	logrus.Info("\n", chainFilters(pongs, f), "\n", chainFilters(pongs, f), "\n", chainFilters(pongs, f), "\n", chainFilters(pongs, f))
-	logrus.Info("\n", chainFilters(pongs, f), "\n", chainFilters(pongs, f), "\n", chainFilters(pongs, f), "\n", chainFilters(pongs, f))
-	logrus.Info("\n", chainFilters(pongs, f), "\n", chainFilters(pongs, f), "\n", chainFilters(pongs, f), "\n", chainFilters(pongs, f))
-	logrus.Info("\n", chainFilters(pongs, f), "\n", chainFilters(pongs, f), "\n", chainFilters(pongs, f), "\n", chainFilters(pongs, f))
+	log.Info("filter", "filter", f)
+	log.Info("filter", "filter", slog.Any("services", chainFilters(pongs, f)))
+	log.Info("filter", "filter", slog.Any("services", chainFilters(pongs, f)))
+	log.Info("filter", "filter", slog.Any("services", chainFilters(pongs, f)))
+	log.Info("filter", "filter", slog.Any("services", chainFilters(pongs, f)))
 
 }
 func launchSubscriber3(chstop chan interface{}, chend chan interface{}, pb pubsub.Pubsub, name string, addr string, kv ...string) {
@@ -242,7 +232,7 @@ func launchSubscriber2(chstop chan interface{}, pb pubsub.Pubsub, s Service) {
 
 	reg.Register(s)
 	<-chstop
-	logrus.Info("STTTTOOPPPPPPPP ", s.Name, "    ", s.Address)
+	log.Info("STTTTOOPPPPPPPP", "service", s.Name, "    ", s.Address)
 
 	reg.Unregister(s)
 	reg.Close()
@@ -515,7 +505,7 @@ func TestAddObserveFilter(t *testing.T) {
 		if strings.HasPrefix(p.Address, "localhost:") {
 			res = true
 		}
-		logrus.Debug("filter ", p.Address, " res ", res)
+		log.Debug("filter", "address", p.Address, "result", res)
 		return
 	}
 	r, _ := NewRegistry(WithPubsub(pb), AddObserveFilter(of))
@@ -579,7 +569,7 @@ func TestMarshal(t *testing.T) {
 	pb.(test.Debug).CallbackPub(func(s string, b []byte) ([]byte, error) {
 		return []byte("titi toto"), nil
 	})
-	r, _ := NewRegistry(WithPubsub(pb), WithLoglevel(logrus.FatalLevel))
+	r, _ := NewRegistry(WithPubsub(pb))
 	ch := make(chan interface{})
 	go launchSubscriber(ch, pb, "test", "localhost:43")
 
@@ -755,6 +745,20 @@ func TestGetRegisteredService(t *testing.T) {
 	s := Service{Name: "TestKV", Address: "localhost:234", KV: map[string]string{"toto": "titi", "popo": "ouf"}}
 	r.Register(s)
 	assert.Equal(t, 1, len(r.GetRegisteredServices()))
+}
+
+func TestGetRegisteredServiceWithDefault(t *testing.T) {
+	pb := test.NewPubSub()
+	reset(pb)
+	_, err := GetRegisteredServices()
+	assert.Equal(t, ErrNoDefaultInstance, err)
+	SetDefault(WithPubsub(pb))
+
+	s := Service{Name: "TestKV", Address: "localhost:234", KV: map[string]string{"toto": "titi", "popo": "ouf"}}
+	Register(s)
+	services, err := GetRegisteredServices()
+	assert.Nil(t, err)
+	assert.Equal(t, 1, len(services))
 
 }
 

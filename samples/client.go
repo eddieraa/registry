@@ -4,12 +4,13 @@ import (
 	"flag"
 	"fmt"
 	"io/ioutil"
+	"log/slog"
 	"net/http"
+	"os"
 
 	"github.com/eddieraa/registry"
 	pb "github.com/eddieraa/registry/nats"
 	"github.com/nats-io/nats.go"
-	"github.com/sirupsen/logrus"
 )
 
 func main() {
@@ -23,27 +24,31 @@ func main() {
 	//parse
 	flag.Parse()
 
+	var log = slog.Default()
+
 	conn, err := nats.Connect(natsURL)
 	if err != nil {
-		logrus.Fatal("could not connect to nats ", err)
+		log.Error("could not connect to nats ", "error", err.Error())
+		os.Exit(1)
 	}
 	reg, err := registry.SetDefault(pb.Nats(conn), registry.AddFilter(registry.LoadBalanceFilter()))
 	if err != nil {
-		logrus.Fatal("could not connect to nats ", err)
+		log.Error("could not connect to nats ", "error", err.Error())
+		os.Exit(1)
 	}
 
 	for i := 0; i < 10; i++ {
 		service, err := reg.GetService(serviceName)
 		if err != nil {
-			logrus.Fatalf("Could not get service %s: %v", serviceName, err)
+			log.Error("Could not get service %s: %v", "service", serviceName, "error", err.Error())
 		}
 
 		rep, err := http.Get(fmt.Sprintf("http://%s/httptest", service.Address))
 		if err != nil {
-			logrus.Fatal("Could net request url ", err)
+			log.Error("Could not request url ", "error", err.Error())
 		}
 		out, _ := ioutil.ReadAll(rep.Body)
-		logrus.Info("Read ", string(out))
+		log.Info("Read ", "data", string(out))
 	}
 	reg.Close()
 
