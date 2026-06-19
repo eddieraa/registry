@@ -56,8 +56,8 @@ func TestObserverEventFunc(t *testing.T) {
 	// service 2 registered, no change because service 1 has lower id
 	//
 	services = map[string]*registry.Service{
-		"1": {Name: "myService", KV: map[string]string{"id": "1"}},
-		"2": {Name: "myService", KV: map[string]string{"id": "2"}},
+		"1": {Name: "myService", Address: "a1", KV: map[string]string{"id": "1"}},
+		"2": {Name: "myService", Address: "a2", KV: map[string]string{"id": "2"}},
 	}
 	r.GetRegisteredServicesImpl = func() []registry.Service {
 		return []registry.Service{*services["2"]}
@@ -72,7 +72,10 @@ func TestIsEligible(t *testing.T) {
 	//
 	// services with no KV, ensure no panic
 	//
-	services := map[string]*registry.Service{}
+	services := map[string]*registry.Service{
+		"1": {Name: "myService", Host: "h1", Address: "a1", KV: map[string]string{"id": "1"}},
+		"2": {Name: "myService", Host: "h2", Address: "a2", KV: map[string]string{"id": "2"}},
+	}
 	r := &registry.RegistryMock{
 		SetServiceStatusImpl: func(s registry.Service, status registry.Status) error {
 			services[s.KV["id"]] = &s
@@ -85,14 +88,9 @@ func TestIsEligible(t *testing.T) {
 
 	o := &options{
 		masterKey: "master",
-		idKey:     "id",
 		registry:  r,
 	}
 
-	services = map[string]*registry.Service{
-		"1": {Name: "myService", Host: "h1", Address: "a1"},
-		"2": {Name: "myService", Host: "h2", Address: "a2"},
-	}
 	r.GetRegisteredServicesImpl = func() []registry.Service {
 		return []registry.Service{*services["2"]}
 	}
