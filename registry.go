@@ -224,7 +224,7 @@ func (p Pong) String() string {
 }
 
 func (r *reg) subToPing(p *Pong) error {
-	r.opts.logger.Info("Sub to ping for service ", p.Name, " ", p.Address)
+	r.opts.logger.Info("Sub to ping", "service", p.Name, "address", p.Address)
 	fn := func(m *pubsub.PubsubMsg) {
 		r.pubregister(p)
 	}

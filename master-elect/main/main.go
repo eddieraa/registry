@@ -12,13 +12,22 @@ import (
 	"github.com/eddieraa/registry"
 	masterelect "github.com/eddieraa/registry/master-elect"
 	nr "github.com/eddieraa/registry/nats"
+
 	"github.com/nats-io/nats.go"
 	"github.com/sirupsen/logrus"
 )
 
 func main() {
-	slog.SetLogLoggerLevel(slog.LevelDebug)
-
+	slog.SetLogLoggerLevel(slog.LevelInfo)
+	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
+		ReplaceAttr: func(groups []string, a slog.Attr) slog.Attr {
+			if a.Key == slog.TimeKey {
+				a.Value = slog.StringValue(a.Value.Time().Format("15:04:05"))
+			}
+			return a
+		},
+	}))
+	slog.SetDefault(logger)
 	flag.Bool("list", false, "list registered services and exit")
 	flag.Parse()
 
@@ -30,7 +39,7 @@ func main() {
 	defer conn.Close()
 
 	if flag.Arg(0) == "list" {
-		r, err := registry.NewRegistry(nr.Nats(conn), registry.WithLoglevel(logrus.InfoLevel))
+		r, err := registry.NewRegistry(nr.Nats(conn), registry.WithLoglevel(logrus.InfoLevel), registry.WithLogger(logger))
 		if err != nil {
 			panic(err)
 		}
@@ -42,7 +51,7 @@ func main() {
 			if err != nil {
 				slog.Error("failed to get services", "error", err)
 			}
-			slog.Info("=======> new event ", ev, " for service ", s.Address)
+			slog.Info("=======> new", "event", ev, "service ", s.Address)
 			for _, s := range services {
 				slog.Info("service", "id", s.KV["id"], "address", s.Address, "master", s.KV["elect-master"])
 			}
@@ -51,7 +60,7 @@ func main() {
 		return
 
 	}
-	r, err := registry.NewRegistry(nr.Nats(conn), registry.WithLoglevel(logrus.InfoLevel))
+	r, err := registry.NewRegistry(nr.Nats(conn), registry.WithLoglevel(logrus.ErrorLevel), registry.WithLogger(logger))
 	if err != nil {
 		panic(err)
 	}
