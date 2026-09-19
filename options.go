@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/eddieraa/registry/pubsub"
+	"github.com/sirupsen/logrus"
 )
 
 // Option option func
@@ -125,9 +126,22 @@ func WithObserverEvent(ev ObserverEvent) Option {
 }
 
 // WithLoglevel set log level
-func WithLoglevel(level slog.Level) Option {
+func WithLoglevel(level logrus.Level) Option {
 	return func(opts *Options) {
-		opts.loglevel = level
+		switch level {
+		case logrus.DebugLevel:
+			opts.loglevel = slog.LevelDebug
+		case logrus.InfoLevel:
+			opts.loglevel = slog.LevelInfo
+		case logrus.ErrorLevel:
+			opts.loglevel = slog.LevelError
+		case logrus.WarnLevel:
+			opts.loglevel = slog.LevelWarn
+		case logrus.TraceLevel:
+			opts.loglevel = slog.LevelDebug
+		default:
+			opts.loglevel = slog.LevelError
+		}
 	}
 }
 
