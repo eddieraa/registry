@@ -57,7 +57,7 @@ func (o *options) addIDToService(s *registry.Service) bool {
 // create  ObserverEvent func to manage master election when service register/unregister
 func (o *options) createObserverEvent(serviceName string) registry.ObserverEvent {
 	return func(s registry.Service, event registry.Event) {
-		slog.Info("ObserverEvent called with service ", s.Address, " and event ", event)
+		slog.Debug("ObserverEvent called", "service ", s.Address, "event", event)
 		if s.Name != serviceName {
 			return
 		}
