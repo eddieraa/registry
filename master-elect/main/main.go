@@ -40,12 +40,11 @@ func main() {
 		r.AddObserverEvent(func(s registry.Service, ev registry.Event) {
 			services, err := r.GetServices("myService")
 			if err != nil {
-				logrus.Error("failed to get services", "error", err)
+				slog.Error("failed to get services", "error", err)
 			}
-			logrus.Info("=======> new event ", ev, " for service ", s.Address)
+			slog.Info("=======> new event ", ev, " for service ", s.Address)
 			for _, s := range services {
-				//logrus.Info("service ", s.Address, " with id ", s.KV["id"], " master(", s.KV["master"], ")")
-				logrus.Infof("service %s with address %s master(%s)", s.KV["id"], s.Address, s.KV["elect-master"])
+				slog.Info("service", "id", s.KV["id"], "address", s.Address, "master", s.KV["elect-master"])
 			}
 		})
 		waitForCtrlCSignal()

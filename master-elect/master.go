@@ -2,11 +2,11 @@ package masterelect
 
 import (
 	"errors"
+	"log/slog"
 	"time"
 
 	"github.com/eddieraa/registry"
 	"github.com/google/uuid"
-	"github.com/sirupsen/logrus"
 )
 
 type options struct {
@@ -57,7 +57,7 @@ func (o *options) addIDToService(s *registry.Service) bool {
 // create  ObserverEvent func to manage master election when service register/unregister
 func (o *options) createObserverEvent(serviceName string) registry.ObserverEvent {
 	return func(s registry.Service, event registry.Event) {
-		logrus.Info("ObserverEvent called with service ", s.Address, " and event ", event)
+		slog.Info("ObserverEvent called with service ", s.Address, " and event ", event)
 		if s.Name != serviceName {
 			return
 		}
